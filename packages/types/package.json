@@ -1,0 +1,18 @@
+{
+  "name": "@socio/types",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Shared TypeScript types for Socio applications",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts",
+    "./*": "./src/*"
+  },
+  "scripts": {
+    "lint": "eslint src --ext .ts"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0"
+  }
+}
