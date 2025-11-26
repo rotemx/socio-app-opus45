@@ -1,0 +1,19 @@
+{
+  "extends": "./tsconfig.base.json",
+  "compilerOptions": {
+    "baseUrl": ".",
+    "paths": {
+      "@socio/shared": ["packages/shared/src"],
+      "@socio/ui": ["packages/ui/src"],
+      "@socio/types": ["packages/types/src"]
+    }
+  },
+  "references": [
+    { "path": "apps/backend" },
+    { "path": "apps/web" },
+    { "path": "apps/mobile" },
+    { "path": "packages/shared" },
+    { "path": "packages/ui" },
+    { "path": "packages/types" }
+  ]
+}

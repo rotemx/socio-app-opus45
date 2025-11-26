@@ -1,0 +1,86 @@
+version: "0.1"
+language: "en-US"
+early_access: true
+
+reviews:
+  profile: "chill"
+  request_changes_workflow: false
+  high_level_summary: true
+  auto_review:
+    enabled: true
+    ignore_title_keywords:
+      - "WIP"
+      - "Draft"
+      - "dont-merge"
+    drafts: false
+  
+  tools:
+    ast-grep:
+      enabled: true
+    markdownlint:
+      enabled: true
+    shellcheck:
+      enabled: true
+    typescript-eslint:
+      enabled: true
+    gitleaks:
+      enabled: true
+
+chat:
+  auto_reply: true
+
+path_filters:
+  - "**/node_modules/**"
+  - "**/dist/**"
+  - "**/build/**"
+  - "**/.turbo/**"
+  - "**/coverage/**"
+  - "pnpm-lock.yaml"
+  - "**/*.lock"
+  - "**/*.min.js"
+  - "**/*.map"
+
+instructions: |
+  You are a senior software engineer reviewing code for the 'Socio' project, a location-based chat app.
+  
+  **Project Structure & Stack:**
+  - **Monorepo:** Turborepo, pnpm workspaces.
+  - **Backend:** NestJS, Prisma (PostgreSQL/PostGIS), Socket.io, Redis.
+  - **Mobile:** React Native (Expo modules), NativeWind, Zustand.
+  - **Web:** React 18, Vite, Tailwind CSS.
+  - **Shared:** Types, UI components, Logic hooks.
+
+  **Critical Mandates (from CLAUDE.md & Specs):**
+  1.  **TypeScript:** Strict mode is enforced. Flag any usage of explicit `any`. Suggest proper types or Generics.
+  2.  **Security:** 
+      - NEVER commit secrets/API keys. 
+      - Scrutinize `auth` modules closely.
+      - Validate input at API boundaries (Zod/DTOs).
+  3.  **Testing:** Ensure unit tests are added/updated for business logic. 80% coverage goal.
+  
+  **Component-Specific Guidelines:**
+
+  **Backend (`apps/backend`):**
+  - Follow NestJS patterns: Modules, Services, Controllers, Gateways.
+  - **Database:** Check Prisma queries for performance (N+1 issues). Verify PostGIS spatial query logic.
+  - **WebSockets:** Ensure proper event handling and disconnection logic in `ChatGateway`.
+  - **Architecture:** Business logic belongs in Services, not Controllers.
+
+  **Mobile (`apps/mobile`):**
+  - **Styling:** STRICTLY PROHIBIT inline styles. Use `NativeWind` (Tailwind class names).
+  - **Performance:** Watch for unnecessary re-renders. Ensure `FlatList` is used for lists.
+  - **Navigation:** Verify React Navigation usage and deep linking configuration.
+  - **State:** Check correct usage of `useAuth`, `useChat` hooks (Zustand/TanStack Query).
+
+  **Web (`apps/web`):**
+  - **Responsiveness:** Ensure UI works on mobile and desktop breakpoints.
+  - **Hooks:** Verify dependency arrays in `useEffect`, `useCallback`, `useMemo`.
+  
+  **Shared (`packages/`):**
+  - **UI:** Components in `packages/ui` should be platform-agnostic where possible or clearly separated.
+  - **Types:** Changes in `packages/types` must be propagated to apps.
+
+  **Review Tone:**
+  - Be professional, constructive, and specific.
+  - If a change seems to violate the `socio-app-tech-spec.md` or `socio-app-ux-ui-spec.md`, flag it and reference the spec.
+  - Praise good adherence to the complex architectural patterns (e.g., "Good use of the Gateway pattern here").
