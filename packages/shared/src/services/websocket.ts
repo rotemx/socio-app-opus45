@@ -6,23 +6,7 @@ type TypingHandler = (indicator: TypingIndicator) => void;
 type PresenceHandler = (presence: UserPresence) => void;
 
 // Safe environment variable access
-const getEnvVar = (key: string): string | undefined => {
-  try {
-    // @ts-ignore
-    if (typeof import.meta !== 'undefined' && import.meta.env) {
-      // @ts-ignore
-      return import.meta.env[`VITE_${key}`] || import.meta.env[key];
-    }
-  } catch (e) {}
-  try {
-    if (typeof process !== 'undefined' && process.env) {
-      return process.env[key];
-    }
-  } catch (e) {}
-  return undefined;
-};
-
-const WS_URL = getEnvVar('WS_URL') || 'http://localhost:3000';
+const WS_URL = (typeof process !== 'undefined' && process.env?.WS_URL) || 'http://localhost:3000';
 
 class WebSocketService {
   private socket: Socket | null = null;
