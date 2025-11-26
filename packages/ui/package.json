@@ -15,7 +15,8 @@
     "test": "jest"
   },
   "dependencies": {
-    "@socio/types": "workspace:*"
+    "@socio/types": "workspace:*",
+    "nativewind": "^4.0.0"
   },
   "devDependencies": {
     "@types/react": "^18.3.12",

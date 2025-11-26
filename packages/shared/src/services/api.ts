@@ -1,6 +1,29 @@
 import type { ApiResponse } from '@socio/types';
 
-const API_BASE_URL = process.env.API_URL || 'http://localhost:3000';
+// Safe environment variable access for both Vite (Web) and Metro (Mobile)
+const getEnvVar = (key: string): string | undefined => {
+  try {
+    // @ts-ignore - import.meta is available in Vite
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // @ts-ignore
+      return import.meta.env[`VITE_${key}`] || import.meta.env[key];
+    }
+  } catch (e) {
+    // Ignore errors if import.meta is not available
+  }
+  
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[key];
+    }
+  } catch (e) {
+    // Ignore errors
+  }
+  
+  return undefined;
+};
+
+const API_BASE_URL = getEnvVar('API_URL') || 'http://localhost:3000';
 
 interface RequestConfig {
   params?: Record<string, string | number | undefined>;

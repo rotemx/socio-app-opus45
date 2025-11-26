@@ -5,7 +5,24 @@ type MessageHandler = (message: Message) => void;
 type TypingHandler = (indicator: TypingIndicator) => void;
 type PresenceHandler = (presence: UserPresence) => void;
 
-const WS_URL = process.env.WS_URL || 'http://localhost:3000';
+// Safe environment variable access
+const getEnvVar = (key: string): string | undefined => {
+  try {
+    // @ts-ignore
+    if (typeof import.meta !== 'undefined' && import.meta.env) {
+      // @ts-ignore
+      return import.meta.env[`VITE_${key}`] || import.meta.env[key];
+    }
+  } catch (e) {}
+  try {
+    if (typeof process !== 'undefined' && process.env) {
+      return process.env[key];
+    }
+  } catch (e) {}
+  return undefined;
+};
+
+const WS_URL = getEnvVar('WS_URL') || 'http://localhost:3000';
 
 class WebSocketService {
   private socket: Socket | null = null;
@@ -15,7 +32,10 @@ class WebSocketService {
 
   connect(token: string) {
     if (this.socket?.connected) {
-      return;
+      // If already connected with the same token, do nothing (simplification)
+      // In a real app, we might check if the token changed.
+      // For now, force reconnect if called again to ensure new token is used.
+      this.disconnect();
     }
 
     this.socket = io(WS_URL, {

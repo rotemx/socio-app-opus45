@@ -24,6 +24,8 @@
     "@nestjs/platform-socket.io": "^10.4.0",
     "@nestjs/websockets": "^10.4.0",
     "@prisma/client": "^5.22.0",
+    "nestjs-zod": "^3.0.0",
+    "zod": "^3.22.0",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
     "socket.io": "^4.8.0"

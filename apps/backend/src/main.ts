@@ -1,8 +1,12 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { ZodValidationPipe } from 'nestjs-zod';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
+
+  // Enable Zod validation globally
+  app.useGlobalPipes(new ZodValidationPipe());
 
   app.enableCors({
     origin: process.env.CORS_ORIGIN || '*',

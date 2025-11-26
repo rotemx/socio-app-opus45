@@ -1,7 +1,6 @@
 import React from 'react';
 import type { Message } from '@socio/types';
-import { colors, spacing, radius } from '../tokens';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text } from 'react-native';
 
 export interface MessageBubbleProps {
   message: Message;
@@ -21,36 +20,29 @@ export function MessageBubble({
     });
   };
 
-  const bubbleStyle = StyleSheet.create({
-    bubble: {
-      backgroundColor: isOwn
-        ? colors.primaryContainer.light
-        : colors.surfaceVariant.light,
-      paddingVertical: spacing.sm,
-      paddingHorizontal: spacing.md,
-      borderRadius: radius.xl,
-      maxWidth: '75%',
-      alignSelf: isOwn ? 'flex-end' : 'flex-start', // Align bubble itself
-    },
-    text: {
-      color: isOwn
-        ? colors.onPrimaryContainer.light
-        : colors.onSurface.light,
-    },
-    timestamp: {
-      fontSize: 10,
-      color: colors.onSurfaceVariant.light,
-      marginTop: spacing.xs,
-      textAlign: isOwn ? 'right' : 'left',
-    }
-  });
-
-
   return (
-    <View style={bubbleStyle.bubble}>
-      <Text style={bubbleStyle.text}>{message.content}</Text>
+    <View 
+      className={`
+        py-2 px-4 rounded-xl max-w-[75%]
+        ${isOwn ? 'bg-blue-100 self-end' : 'bg-gray-200 self-start'}
+      `}
+    >
+      <Text 
+        className={`
+          ${isOwn ? 'text-blue-900' : 'text-gray-900'}
+        `}
+      >
+        {message.content}
+      </Text>
       {showTimestamp && (
-        <Text style={bubbleStyle.timestamp}>{formatTime(message.createdAt)}</Text>
+        <Text 
+          className={`
+            text-xs mt-1 text-gray-500
+            ${isOwn ? 'text-right' : 'text-left'}
+          `}
+        >
+          {formatTime(message.createdAt)}
+        </Text>
       )}
       {/* TODO: Implement read status indicator */}
     </View>
