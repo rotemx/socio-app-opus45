@@ -62,14 +62,14 @@ class ApiService {
     return url.toString();
   }
 
-  private getHeaders(customHeaders?: Record<string, string>): Headers {
-    const headers = new Headers({
+  private getHeaders(customHeaders?: Record<string, string>): Record<string, string> {
+    const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       ...customHeaders,
-    });
+    };
 
     if (this.accessToken) {
-      headers.set('Authorization', `Bearer ${this.accessToken}`);
+      headers['Authorization'] = `Bearer ${this.accessToken}`;
     }
 
     return headers;
