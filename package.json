@@ -9,7 +9,11 @@
     "test": "turbo test",
     "lint": "turbo lint",
     "clean": "turbo clean && rm -rf node_modules",
-    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\""
+    "format": "prettier --write \"**/*.{ts,tsx,js,jsx,json,md}\"",
+    "docker:start": "pnpm --filter=@socio/backend docker:start",
+    "docker:stop": "pnpm --filter=@socio/backend docker:stop",
+    "docker:status": "pnpm --filter=@socio/backend docker:status",
+    "docker:clean": "pnpm --filter=@socio/backend docker:clean"
   },
   "keywords": ["chat", "location-based", "monorepo", "turborepo"],
   "author": "",

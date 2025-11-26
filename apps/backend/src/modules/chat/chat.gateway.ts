@@ -1,7 +1,7 @@
 import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket } from '@nestjs/websockets';
 import { Socket } from 'socket.io';
 import { ChatService } from './chat.service';
-import { UsePipes, ValidationPipe } from '@nestjs/common';
+import { UsePipes } from '@nestjs/common';
 import { z } from 'zod';
 import { ZodValidationPipe } from 'nestjs-zod';
 
