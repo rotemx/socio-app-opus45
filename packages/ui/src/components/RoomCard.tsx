@@ -1,4 +1,3 @@
-import React from 'react';
 import type { RoomWithDistance } from '@socio/types';
 import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { spacing, colors, radius } from '../tokens';
@@ -143,7 +142,7 @@ export function RoomCard({
         </View>
         {room.tags && room.tags.length > 0 && (
           <View style={styles.tagsContainer}>
-            {room.tags.map((tag, index) => (
+            {room.tags.map((tag: string, index: number) => (
               <View key={index} style={styles.tag}>
                 <Text style={styles.tagText}>{tag}</Text>
               </View>

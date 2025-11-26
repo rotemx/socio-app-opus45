@@ -1,5 +1,4 @@
-import React from 'react';
-import { View, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet } from 'react-native';
 import { colors, spacing, radius } from '../tokens';
 
 export interface ChatInputProps {

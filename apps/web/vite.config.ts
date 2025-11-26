@@ -10,4 +10,7 @@ export default defineConfig({
       'react-native': 'react-native-web',
     },
   },
+  define: {
+    'process.env': {},
+  },
 });

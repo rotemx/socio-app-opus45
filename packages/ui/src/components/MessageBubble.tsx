@@ -1,4 +1,3 @@
-import React from 'react';
 import type { Message } from '@socio/types';
 import { View, Text } from 'react-native';
 

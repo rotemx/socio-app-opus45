@@ -1,0 +1,941 @@
+{
+  "info": {
+    "_postman_id": "socio-api-collection",
+    "name": "Socio API",
+    "description": "API collection for Socio - Location-based chat room discovery platform.\n\n## Setup\n1. Import the `socio-environment.json` file\n2. Select \"Socio - Development\" environment\n3. Start the backend: `pnpm dev --filter=@socio/backend`\n\n## WebSocket Testing\nUse the Socket.IO requests in the \"Chat (WebSocket)\" folder.\nPostman supports Socket.IO - create a new Socket.IO request and connect to `{{wsUrl}}`.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{accessToken}}",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [""]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:3000"
+    }
+  ],
+  "item": [
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/health",
+              "host": ["{{baseUrl}}"],
+              "path": ["health"]
+            },
+            "description": "Check if the server is running and healthy."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Auth",
+      "description": "Authentication endpoints for JWT, OAuth, and Phone verification.",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.accessToken) {",
+                  "        pm.environment.set('accessToken', response.accessToken);",
+                  "    }",
+                  "    if (response.refreshToken) {",
+                  "        pm.environment.set('refreshToken', response.refreshToken);",
+                  "    }",
+                  "    if (response.user && response.user.id) {",
+                  "        pm.environment.set('userId', response.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"SecurePassword123!\",\n  \"displayName\": \"Test User\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/register",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "register"]
+            },
+            "description": "Register a new user account."
+          },
+          "response": []
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.accessToken) {",
+                  "        pm.environment.set('accessToken', response.accessToken);",
+                  "    }",
+                  "    if (response.refreshToken) {",
+                  "        pm.environment.set('refreshToken', response.refreshToken);",
+                  "    }",
+                  "    if (response.user && response.user.id) {",
+                  "        pm.environment.set('userId', response.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"user@example.com\",\n  \"password\": \"SecurePassword123!\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/login",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "login"]
+            },
+            "description": "Login with email and password."
+          },
+          "response": []
+        },
+        {
+          "name": "Refresh Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.accessToken) {",
+                  "        pm.environment.set('accessToken', response.accessToken);",
+                  "    }",
+                  "    if (response.refreshToken) {",
+                  "        pm.environment.set('refreshToken', response.refreshToken);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"refreshToken\": \"{{refreshToken}}\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/refresh",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "refresh"]
+            },
+            "description": "Refresh the access token using a refresh token."
+          },
+          "response": []
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/auth/logout",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "logout"]
+            },
+            "description": "Logout and invalidate the current session."
+          },
+          "response": []
+        },
+        {
+          "name": "Request Phone OTP",
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+972501234567\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/phone/request-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "phone", "request-otp"]
+            },
+            "description": "Request an OTP code sent to the phone number."
+          },
+          "response": []
+        },
+        {
+          "name": "Verify Phone OTP",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.accessToken) {",
+                  "        pm.environment.set('accessToken', response.accessToken);",
+                  "    }",
+                  "    if (response.refreshToken) {",
+                  "        pm.environment.set('refreshToken', response.refreshToken);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": {
+              "type": "noauth"
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"phoneNumber\": \"+972501234567\",\n  \"otp\": \"123456\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/auth/phone/verify-otp",
+              "host": ["{{baseUrl}}"],
+              "path": ["auth", "phone", "verify-otp"]
+            },
+            "description": "Verify the OTP code and authenticate."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Users",
+      "description": "User management endpoints.",
+      "item": [
+        {
+          "name": "Get Current User",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.id) {",
+                  "        pm.environment.set('userId', response.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me"]
+            },
+            "description": "Get the currently authenticated user's profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Current User",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"displayName\": \"Updated Name\",\n  \"bio\": \"Hello, I'm using Socio!\",\n  \"avatarUrl\": \"https://example.com/avatar.jpg\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me"]
+            },
+            "description": "Update the current user's profile."
+          },
+          "response": []
+        },
+        {
+          "name": "Get User by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/{{userId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "{{userId}}"]
+            },
+            "description": "Get a user's public profile by their ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Location",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"latitude\": {{latitude}},\n  \"longitude\": {{longitude}}\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/users/me/location",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me", "location"]
+            },
+            "description": "Update the current user's location for room discovery."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Account",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/users/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["users", "me"]
+            },
+            "description": "Delete the current user's account permanently."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Rooms",
+      "description": "Chat room CRUD and discovery endpoints.",
+      "item": [
+        {
+          "name": "Discover Nearby Rooms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/nearby?latitude={{latitude}}&longitude={{longitude}}&radiusKm={{radiusKm}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "nearby"],
+              "query": [
+                {
+                  "key": "latitude",
+                  "value": "{{latitude}}",
+                  "description": "User's current latitude"
+                },
+                {
+                  "key": "longitude",
+                  "value": "{{longitude}}",
+                  "description": "User's current longitude"
+                },
+                {
+                  "key": "radiusKm",
+                  "value": "{{radiusKm}}",
+                  "description": "Search radius in kilometers"
+                }
+              ]
+            },
+            "description": "Find chat rooms near a location using PostGIS spatial queries."
+          },
+          "response": []
+        },
+        {
+          "name": "Search Rooms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/search?q=community&limit=20&offset=0",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "search"],
+              "query": [
+                {
+                  "key": "q",
+                  "value": "community",
+                  "description": "Search query"
+                },
+                {
+                  "key": "limit",
+                  "value": "20",
+                  "description": "Number of results to return"
+                },
+                {
+                  "key": "offset",
+                  "value": "0",
+                  "description": "Pagination offset"
+                }
+              ]
+            },
+            "description": "Search rooms by name or description."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Room by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.id) {",
+                  "        pm.environment.set('roomId', response.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}"]
+            },
+            "description": "Get detailed information about a specific room."
+          },
+          "response": []
+        },
+        {
+          "name": "Create Room",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const response = pm.response.json();",
+                  "    if (response.id) {",
+                  "        pm.environment.set('roomId', response.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Tel Aviv Pride Community\",\n  \"description\": \"A welcoming space for the Tel Aviv LGBT community\",\n  \"latitude\": 32.0853,\n  \"longitude\": 34.7818,\n  \"isPrivate\": false,\n  \"maxMembers\": 100\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rooms",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms"]
+            },
+            "description": "Create a new chat room."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Room",
+          "request": {
+            "method": "PATCH",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"name\": \"Updated Room Name\",\n  \"description\": \"Updated description\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}"]
+            },
+            "description": "Update room details (owner/admin only)."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Room",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}"]
+            },
+            "description": "Delete a room (owner only)."
+          },
+          "response": []
+        },
+        {
+          "name": "Join Room",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/join",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "join"]
+            },
+            "description": "Join a chat room as a member."
+          },
+          "response": []
+        },
+        {
+          "name": "Leave Room",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/leave",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "leave"]
+            },
+            "description": "Leave a chat room."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Room Members",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/members",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "members"]
+            },
+            "description": "Get the list of members in a room."
+          },
+          "response": []
+        },
+        {
+          "name": "Get My Rooms",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/me",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "me"]
+            },
+            "description": "Get all rooms the current user is a member of."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Messages",
+      "description": "Message persistence and history endpoints.",
+      "item": [
+        {
+          "name": "Get Room Messages",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/messages?limit=50&before=",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "messages"],
+              "query": [
+                {
+                  "key": "limit",
+                  "value": "50",
+                  "description": "Number of messages to return"
+                },
+                {
+                  "key": "before",
+                  "value": "",
+                  "description": "Cursor for pagination (message ID or timestamp)"
+                }
+              ]
+            },
+            "description": "Get message history for a room with pagination."
+          },
+          "response": []
+        },
+        {
+          "name": "Get Message by ID",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/messages/{{messageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", "{{messageId}}"]
+            },
+            "description": "Get a specific message by ID."
+          },
+          "response": []
+        },
+        {
+          "name": "Delete Message",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/messages/{{messageId}}",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", "{{messageId}}"]
+            },
+            "description": "Delete a message (sender or room admin only)."
+          },
+          "response": []
+        },
+        {
+          "name": "React to Message",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"emoji\": \"❤️\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/messages/{{messageId}}/reactions",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", "{{messageId}}", "reactions"]
+            },
+            "description": "Add an emoji reaction to a message."
+          },
+          "response": []
+        },
+        {
+          "name": "Remove Reaction",
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/messages/{{messageId}}/reactions?emoji=❤️",
+              "host": ["{{baseUrl}}"],
+              "path": ["messages", "{{messageId}}", "reactions"],
+              "query": [
+                {
+                  "key": "emoji",
+                  "value": "❤️",
+                  "description": "The emoji reaction to remove"
+                }
+              ]
+            },
+            "description": "Remove an emoji reaction from a message."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Presence",
+      "description": "Online status tracking endpoints.",
+      "item": [
+        {
+          "name": "Get Online Users in Room",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/presence",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "presence"]
+            },
+            "description": "Get a list of currently online users in a room."
+          },
+          "response": []
+        },
+        {
+          "name": "Update My Status",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"status\": \"online\",\n  \"statusMessage\": \"Available to chat\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/presence/status",
+              "host": ["{{baseUrl}}"],
+              "path": ["presence", "status"]
+            },
+            "description": "Update current user's online status. Status can be: online, away, busy, offline."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Chat (WebSocket)",
+      "description": "WebSocket events for real-time chat.\n\n**How to test:**\n1. Create a new Socket.IO request in Postman\n2. Connect to `{{wsUrl}}`\n3. Use the event names and payloads documented below",
+      "item": [
+        {
+          "name": "WS - Connect",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{wsUrl}}/socket.io/?EIO=4&transport=polling",
+              "host": ["{{wsUrl}}"],
+              "path": ["socket.io", ""],
+              "query": [
+                {
+                  "key": "EIO",
+                  "value": "4"
+                },
+                {
+                  "key": "transport",
+                  "value": "polling"
+                }
+              ]
+            },
+            "description": "**Socket.IO Connection**\n\nConnect to the WebSocket server using Socket.IO.\n\n**URL:** `{{wsUrl}}`\n\n**Auth (optional):**\n```json\n{\n  \"token\": \"{{accessToken}}\"\n}\n```"
+          },
+          "response": []
+        },
+        {
+          "name": "WS - join_room",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            },
+            "description": "**Event:** `join_room`\n\n**Payload:**\n```json\n{\n  \"roomId\": \"uuid-of-room\"\n}\n```\n\n**Response Event:** `joined_room`\n```json\n{\n  \"roomId\": \"uuid-of-room\"\n}\n```\n\n**Description:** Join a chat room to receive messages."
+          },
+          "response": []
+        },
+        {
+          "name": "WS - leave_room",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            },
+            "description": "**Event:** `leave_room`\n\n**Payload:**\n```json\n{\n  \"roomId\": \"uuid-of-room\"\n}\n```\n\n**Description:** Leave a chat room and stop receiving messages."
+          },
+          "response": []
+        },
+        {
+          "name": "WS - send_message",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            },
+            "description": "**Event:** `send_message`\n\n**Payload:**\n```json\n{\n  \"roomId\": \"uuid-of-room\",\n  \"content\": \"Hello, everyone!\"\n}\n```\n\n**Response:** Returns the created message object\n```json\n{\n  \"id\": \"message-uuid\",\n  \"roomId\": \"uuid-of-room\",\n  \"senderId\": \"user-uuid\",\n  \"content\": \"Hello, everyone!\",\n  \"createdAt\": \"2025-11-26T12:00:00.000Z\"\n}\n```\n\n**Broadcast Event:** `message` - Sent to all other users in the room"
+          },
+          "response": []
+        },
+        {
+          "name": "WS - typing_start",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            },
+            "description": "**Event:** `typing_start`\n\n**Payload:**\n```json\n{\n  \"roomId\": \"uuid-of-room\"\n}\n```\n\n**Broadcast Event:** `user_typing`\n```json\n{\n  \"userId\": \"user-uuid\",\n  \"roomId\": \"uuid-of-room\"\n}\n```\n\n**Description:** Notify other users that you started typing."
+          },
+          "response": []
+        },
+        {
+          "name": "WS - typing_stop",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}",
+              "host": ["{{baseUrl}}"]
+            },
+            "description": "**Event:** `typing_stop`\n\n**Payload:**\n```json\n{\n  \"roomId\": \"uuid-of-room\"\n}\n```\n\n**Broadcast Event:** `user_stopped_typing`\n```json\n{\n  \"userId\": \"user-uuid\",\n  \"roomId\": \"uuid-of-room\"\n}\n```\n\n**Description:** Notify other users that you stopped typing."
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Voice/Video (100ms)",
+      "description": "Endpoints for voice and video call integration with 100ms SDK.",
+      "item": [
+        {
+          "name": "Get Room Token",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"roomId\": \"{{roomId}}\",\n  \"role\": \"participant\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/calls/token",
+              "host": ["{{baseUrl}}"],
+              "path": ["calls", "token"]
+            },
+            "description": "Get a 100ms auth token to join a voice/video call.\n\nRoles: `participant`, `moderator`"
+          },
+          "response": []
+        },
+        {
+          "name": "Start Call in Room",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"type\": \"audio\"\n}"
+            },
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/call/start",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "call", "start"]
+            },
+            "description": "Start a voice or video call in a room.\n\nType: `audio` or `video`"
+          },
+          "response": []
+        },
+        {
+          "name": "End Call in Room",
+          "request": {
+            "method": "POST",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/rooms/{{roomId}}/call/end",
+              "host": ["{{baseUrl}}"],
+              "path": ["rooms", "{{roomId}}", "call", "end"]
+            },
+            "description": "End the active call in a room (moderator only)."
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

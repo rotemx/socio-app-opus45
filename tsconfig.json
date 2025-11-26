@@ -4,16 +4,13 @@
     "baseUrl": ".",
     "paths": {
       "@socio/shared": ["packages/shared/src"],
+      "@socio/shared/*": ["packages/shared/src/*"],
       "@socio/ui": ["packages/ui/src"],
-      "@socio/types": ["packages/types/src"]
-    }
+      "@socio/ui/*": ["packages/ui/src/*"],
+      "@socio/types": ["packages/types/src"],
+      "@socio/types/*": ["packages/types/src/*"]
+    },
+    "noEmit": true
   },
-  "references": [
-    { "path": "apps/backend" },
-    { "path": "apps/web" },
-    { "path": "apps/mobile" },
-    { "path": "packages/shared" },
-    { "path": "packages/ui" },
-    { "path": "packages/types" }
-  ]
+  "include": []
 }

@@ -23,6 +23,7 @@
     "socket.io-client": "^4.8.0"
   },
   "devDependencies": {
+    "@types/node": "^22.9.0",
     "@types/react": "^18.3.12",
     "typescript": "^5.6.0",
     "jest": "^29.7.0",

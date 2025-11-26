@@ -27,9 +27,17 @@ export const colors = {
     light: '#5A6067',
     dark: '#C2C9D1',
   },
+  onSecondary: {
+    light: '#FFFFFF',
+    dark: '#2C3136',
+  },
   secondaryContainer: {
     light: '#DEE3EB',
     dark: '#42484F',
+  },
+  onSecondaryContainer: {
+    light: '#171C21',
+    dark: '#DEE3EB',
   },
 
   // Surface
