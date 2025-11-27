@@ -2,8 +2,7 @@ import { useChatStore } from '../stores/chatStore';
 import type { Message, TypingIndicator } from '@socio/types';
 
 export function useChat(roomId: string) {
-  const { messages, typingUsers, addMessage, setMessages, setTyping, clearRoom } =
-    useChatStore();
+  const { messages, typingUsers, addMessage, setMessages, setTyping, clearRoom } = useChatStore();
 
   const roomMessages = messages[roomId] || [];
   const roomTypingUsers = typingUsers[roomId] || [];

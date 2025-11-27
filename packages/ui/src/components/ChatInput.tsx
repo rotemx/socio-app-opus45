@@ -85,7 +85,11 @@ export function ChatInput({
         editable={!disabled}
       />
       {hasText ? (
-        <TouchableOpacity style={[styles.button, styles.sendButton]} onPress={onSend} disabled={disabled}>
+        <TouchableOpacity
+          style={[styles.button, styles.sendButton]}
+          onPress={onSend}
+          disabled={disabled}
+        >
           <Text style={styles.buttonText}>➤</Text>
         </TouchableOpacity>
       ) : (

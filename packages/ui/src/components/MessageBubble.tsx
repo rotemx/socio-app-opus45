@@ -7,11 +7,7 @@ export interface MessageBubbleProps {
   showTimestamp?: boolean;
 }
 
-export function MessageBubble({
-  message,
-  isOwn,
-  showTimestamp = true,
-}: MessageBubbleProps) {
+export function MessageBubble({ message, isOwn, showTimestamp = true }: MessageBubbleProps) {
   const formatTime = (date: Date) => {
     return new Date(date).toLocaleTimeString([], {
       hour: '2-digit',
@@ -20,13 +16,13 @@ export function MessageBubble({
   };
 
   return (
-    <View 
+    <View
       className={`
         py-2 px-4 rounded-xl max-w-[75%]
         ${isOwn ? 'bg-blue-100 self-end' : 'bg-gray-200 self-start'}
       `}
     >
-      <Text 
+      <Text
         className={`
           ${isOwn ? 'text-blue-900' : 'text-gray-900'}
         `}
@@ -34,7 +30,7 @@ export function MessageBubble({
         {message.content}
       </Text>
       {showTimestamp && (
-        <Text 
+        <Text
           className={`
             text-xs mt-1 text-gray-500
             ${isOwn ? 'text-right' : 'text-left'}

@@ -1,4 +1,4 @@
-import { io, Socket } from 'socket.io-client';
+import { io, type Socket } from 'socket.io-client';
 import type { Message, TypingIndicator, UserPresence } from '@socio/types';
 
 type MessageHandler = (message: Message) => void;

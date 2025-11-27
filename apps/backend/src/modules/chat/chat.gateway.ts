@@ -1,11 +1,20 @@
-import { WebSocketGateway, SubscribeMessage, MessageBody, ConnectedSocket } from '@nestjs/websockets';
-import { Socket } from 'socket.io';
+import {
+  WebSocketGateway,
+  SubscribeMessage,
+  MessageBody,
+  ConnectedSocket,
+} from '@nestjs/websockets';
+import { type Socket } from 'socket.io';
 import { ChatService } from './chat.service';
-import { UsePipes } from '@nestjs/common';
+import { Logger, UsePipes } from '@nestjs/common';
 import { z } from 'zod';
 import { ZodValidationPipe } from 'nestjs-zod';
 
-// Example Zod Schema for validation
+// Zod Schemas for validation
+const JoinRoomSchema = z.object({
+  roomId: z.string().uuid(),
+});
+
 const SendMessageSchema = z.object({
   roomId: z.string().uuid(),
   content: z.string().min(1),
@@ -13,22 +22,27 @@ const SendMessageSchema = z.object({
 
 @WebSocketGateway({ cors: true })
 export class ChatGateway {
+  private readonly logger = new Logger(ChatGateway.name);
+
   constructor(private readonly chatService: ChatService) {}
 
   @SubscribeMessage('join_room')
-  handleJoinRoom(
-    @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string },
-  ) {
-    client.join(data.roomId);
-    return { event: 'joined_room', data: { roomId: data.roomId } };
+  @UsePipes(new ZodValidationPipe(JoinRoomSchema))
+  async handleJoinRoom(@ConnectedSocket() client: Socket, @MessageBody() data: { roomId: string }) {
+    try {
+      await client.join(data.roomId);
+      return { event: 'joined_room', data: { roomId: data.roomId } };
+    } catch (error) {
+      this.logger.error('Failed to join room:', error);
+      return { event: 'error', data: { message: 'Failed to join room' } };
+    }
   }
 
   @SubscribeMessage('send_message')
   @UsePipes(new ZodValidationPipe(SendMessageSchema))
   handleMessage(
     @ConnectedSocket() client: Socket,
-    @MessageBody() data: { roomId: string; content: string },
+    @MessageBody() data: { roomId: string; content: string }
   ) {
     // In a real app, senderId comes from client.data.user
     const message = this.chatService.saveMessage(data.roomId, 'temp-user-id', data.content);

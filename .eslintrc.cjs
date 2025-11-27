@@ -1,3 +1,10 @@
+/**
+ * Root ESLint Configuration for Socio Monorepo
+ *
+ * This configuration serves as the base for all packages.
+ * Individual apps/packages should create their own .eslintrc.cjs
+ * that extends from @socio/config/eslint/* for specific configurations.
+ */
 module.exports = {
   root: true,
   env: {
@@ -10,6 +17,7 @@ module.exports = {
     'plugin:@typescript-eslint/recommended',
     'plugin:react/recommended',
     'plugin:react-hooks/recommended',
+    'prettier',
   ],
   parser: '@typescript-eslint/parser',
   parserOptions: {
@@ -26,8 +34,7 @@ module.exports = {
   },
   plugins: ['@typescript-eslint', 'react', 'react-hooks'],
   rules: {
-    'react/react-in-jsx-scope': 'off',
-    'react/jsx-uses-react': 'off',
+    // TypeScript rules
     '@typescript-eslint/no-unused-vars': [
       'warn',
       {
@@ -36,7 +43,24 @@ module.exports = {
         caughtErrorsIgnorePattern: '^_',
       },
     ],
-    // Add custom rules here if needed
+    '@typescript-eslint/no-explicit-any': 'error',
+    '@typescript-eslint/consistent-type-imports': [
+      'warn',
+      {
+        prefer: 'type-imports',
+        fixStyle: 'inline-type-imports',
+      },
+    ],
+
+    // React rules
+    'react/react-in-jsx-scope': 'off',
+    'react/jsx-uses-react': 'off',
+    'react/prop-types': 'off',
+
+    // General rules
+    'prefer-const': 'error',
+    'no-var': 'error',
+    eqeqeq: ['error', 'always', { null: 'ignore' }],
   },
   ignorePatterns: [
     'node_modules/',
@@ -44,15 +68,23 @@ module.exports = {
     'build/',
     '.next/',
     '.turbo/',
-    '**/*.js', // Ignore JS files as we're primarily linting TS/TSX
-    '*.cjs', // Ignore CJS config files
+    'coverage/',
   ],
-  // Overrides for specific file types or folders
   overrides: [
     {
       files: ['packages/ui/src/**/*.tsx', 'apps/mobile/src/**/*.tsx'],
       rules: {
-        'react/jsx-no-undef': 'off', // Disable for RN components
+        'react/jsx-no-undef': 'off',
+      },
+    },
+    {
+      files: ['**/*.spec.ts', '**/*.test.ts', '**/*.e2e-spec.ts'],
+      env: {
+        jest: true,
+      },
+      rules: {
+        // Keep type safety in tests - use unknown instead of any when needed
+        '@typescript-eslint/no-explicit-any': 'warn',
       },
     },
   ],

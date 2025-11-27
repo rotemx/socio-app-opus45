@@ -1,0 +1,39 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+
+# Build outputs
+dist/
+build/
+.next/
+.turbo/
+coverage/
+
+# Generated files
+*.generated.*
+*.min.*
+pnpm-lock.yaml
+package-lock.json
+yarn.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Mobile build artifacts
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/.expo/
+
+# Prisma generated
+apps/backend/node_modules/.prisma/
+
+# Environment files
+.env*
+!.env.example

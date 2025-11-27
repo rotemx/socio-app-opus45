@@ -16,8 +16,21 @@
     "lint": {
       "dependsOn": ["^build"]
     },
+    "lint:fix": {
+      "cache": false
+    },
+    "format": {
+      "cache": false
+    },
+    "format:check": {
+      "outputs": []
+    },
     "clean": {
       "cache": false
+    },
+    "typecheck": {
+      "dependsOn": ["^build"],
+      "outputs": []
     }
   }
 }

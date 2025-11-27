@@ -131,9 +131,7 @@ export function RoomCard({
           {displayDistance && (
             <Text style={styles.detailText}>{formatDistance(room.distanceMeters!)}</Text>
           )}
-          {displayMemberCount && (
-            <Text style={styles.detailText}>{room.memberCount} members</Text>
-          )}
+          {displayMemberCount && <Text style={styles.detailText}>{room.memberCount} members</Text>}
           {displayLastActivity && (
             <Text style={styles.detailText}>
               Last active: {formatLastActivity(room.lastActivityAt!)}

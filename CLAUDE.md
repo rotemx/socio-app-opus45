@@ -1,9 +1,11 @@
 # Socio Chat Application
 
 ## Project Overview
+
 Location-based chat room discovery platform for the Tel Aviv LGBT community. Users can find nearby communities, engage in real-time conversations, and connect through voice/video calls.
 
 ## Tech Stack
+
 - **Mobile**: React Native 0.76+, TypeScript, Zustand, TanStack Query
 - **Web**: React.js 18, Vite, TypeScript
 - **Backend**: NestJS 10, Socket.io, Prisma, PostgreSQL/PostGIS, Redis
@@ -11,6 +13,7 @@ Location-based chat room discovery platform for the Tel Aviv LGBT community. Use
 - **Monorepo**: Turborepo with pnpm workspaces
 
 ## Development Commands
+
 ```bash
 # Start all services
 pnpm dev
@@ -35,6 +38,7 @@ cd apps/backend && npx prisma migrate dev
 ```
 
 ## Project Structure
+
 ```
 socio/
 ├── apps/
@@ -50,6 +54,7 @@ socio/
 ```
 
 ## Code Conventions
+
 - TypeScript strict mode everywhere
 - Functional components with hooks (React/React Native)
 - async/await, never callbacks
@@ -57,17 +62,20 @@ socio/
 - Use existing patterns as templates
 
 ## Key Patterns
+
 - **WebSocket Handler**: See `apps/backend/src/modules/chat/chat.gateway.ts`
 - **Zustand Store**: See `packages/shared/src/stores/chatStore.ts`
 - **TanStack Query Hook**: See `packages/shared/src/hooks/useChatHistory.ts`
 - **UI Component**: See `packages/ui/src/components/MessageBubble.tsx`
 
 ## Testing Requirements
+
 - Unit tests for all services (80% coverage minimum)
 - Component tests for UI components
 - E2E tests for critical flows (auth, chat, room discovery)
 
 ## DO NOT
+
 - Modify authentication without security review
 - Add npm packages without approval
 - Use `any` type

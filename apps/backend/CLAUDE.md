@@ -1,9 +1,11 @@
 # Socio Backend
 
 ## Overview
+
 NestJS backend service providing REST API and WebSocket gateway for the Socio chat application.
 
 ## Tech Stack
+
 - NestJS 10.x with TypeScript
 - Socket.io for WebSocket
 - Prisma ORM with PostgreSQL/PostGIS
@@ -11,6 +13,7 @@ NestJS backend service providing REST API and WebSocket gateway for the Socio ch
 - BullMQ for background jobs
 
 ## Commands
+
 ```bash
 # Development
 pnpm dev
@@ -30,6 +33,7 @@ pnpm test:cov      # With coverage
 ```
 
 ## Module Structure
+
 ```
 src/
 ├── modules/
@@ -49,6 +53,7 @@ src/
 ## Key Patterns
 
 ### WebSocket Gateway
+
 ```typescript
 @WebSocketGateway({ cors: true })
 export class ChatGateway {
@@ -60,6 +65,7 @@ export class ChatGateway {
 ```
 
 ### Service Pattern
+
 ```typescript
 @Injectable()
 export class RoomsService {
@@ -72,11 +78,13 @@ export class RoomsService {
 ```
 
 ## Database
+
 - PostgreSQL 16 with PostGIS 3.4+ for geospatial queries
 - Prisma schema in `prisma/schema.prisma`
 - Migrations in `prisma/migrations/`
 
 ## Environment Variables
+
 ```
 DATABASE_URL=postgresql://...
 REDIS_URL=redis://...
