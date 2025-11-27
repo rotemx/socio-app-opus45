@@ -5,6 +5,7 @@ import {
   ConnectedSocket,
 } from '@nestjs/websockets';
 import { type Socket } from 'socket.io';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { ChatService } from './chat.service';
 import { Logger, UsePipes } from '@nestjs/common';
 import { z } from 'zod';
