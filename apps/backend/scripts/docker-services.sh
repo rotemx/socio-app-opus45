@@ -105,6 +105,18 @@ start_postgres() {
     log_info "Waiting for PostgreSQL to be ready..."
     wait_for_postgres
     log_info "PostgreSQL is ready on port $POSTGRES_PORT"
+
+    # Initialize database with PostGIS extensions if init script exists
+    init_script="$SCRIPT_DIR/init-db.sql"
+    if [ -f "$init_script" ]; then
+        log_info "Running database initialization script..."
+        if docker exec -i "$POSTGRES_CONTAINER" psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" < "$init_script"; then
+            log_info "Database initialization complete"
+        else
+            log_error "Database initialization failed"
+            exit 1
+        fi
+    fi
 }
 
 # Start Redis container
