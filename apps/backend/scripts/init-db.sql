@@ -148,22 +148,28 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- Create index for spatial queries on location JSON field
--- Note: This creates a functional index on the extracted coordinates
+-- Note: Using geometry type for GIST index as it's more efficient for functional indexes
 CREATE INDEX IF NOT EXISTS idx_chat_rooms_location_point ON chat_rooms
 USING GIST (
-    ST_MakePoint(
-        (location->>'longitude')::DOUBLE PRECISION,
-        (location->>'latitude')::DOUBLE PRECISION
-    )::geography
-);
+    ST_SetSRID(
+        ST_MakePoint(
+            (location->>'longitude')::DOUBLE PRECISION,
+            (location->>'latitude')::DOUBLE PRECISION
+        ),
+        4326
+    )
+) WHERE location IS NOT NULL;
 
 -- Create index for user location queries
 CREATE INDEX IF NOT EXISTS idx_users_location_point ON users
 USING GIST (
-    ST_MakePoint(
-        (current_location->>'longitude')::DOUBLE PRECISION,
-        (current_location->>'latitude')::DOUBLE PRECISION
-    )::geography
+    ST_SetSRID(
+        ST_MakePoint(
+            (current_location->>'longitude')::DOUBLE PRECISION,
+            (current_location->>'latitude')::DOUBLE PRECISION
+        ),
+        4326
+    )
 ) WHERE current_location IS NOT NULL;
 
 -- Create partial index for active public rooms (common query pattern)
