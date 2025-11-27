@@ -1,13 +1,33 @@
-import { SafeAreaView, Text } from 'react-native';
+import React from 'react';
+import { StatusBar, useColorScheme } from 'react-native';
+import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 
+import { QueryProvider } from './providers';
+import { RootNavigator } from './navigation';
+
+// Import NativeWind styles
+import '../global.css';
+
+/**
+ * Main application component
+ * Sets up all providers and navigation
+ */
 function App(): React.JSX.Element {
+  const isDarkMode = useColorScheme() === 'dark';
+
   return (
-    <SafeAreaView className="flex-1 justify-center items-center bg-white">
-      <Text className="text-2xl font-bold text-black">Socio Mobile</Text>
-      <Text className="text-base mt-2 text-gray-600">
-        Location-based chat room discovery platform
-      </Text>
-    </SafeAreaView>
+    <SafeAreaProvider>
+      <QueryProvider>
+        <NavigationContainer>
+          <StatusBar
+            barStyle={isDarkMode ? 'light-content' : 'dark-content'}
+            backgroundColor={isDarkMode ? '#000000' : '#ffffff'}
+          />
+          <RootNavigator />
+        </NavigationContainer>
+      </QueryProvider>
+    </SafeAreaProvider>
   );
 }
 
