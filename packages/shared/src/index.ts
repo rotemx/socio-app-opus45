@@ -11,4 +11,5 @@ export * from './hooks/useRoomDiscovery';
 
 // Services
 export * from './services/api';
+export * from './services/auth';
 export * from './services/websocket';

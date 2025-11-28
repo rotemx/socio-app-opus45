@@ -19,6 +19,7 @@ export type RootStackParamList = {
   Login: undefined;
   Register: undefined;
   ForgotPassword: undefined;
+  PhoneVerification: { mode: 'login' | 'register' } | undefined;
 };
 
 /**

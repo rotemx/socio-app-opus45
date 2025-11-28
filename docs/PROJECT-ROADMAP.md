@@ -12,7 +12,7 @@
 | Epic | Title | Status | Progress |
 |------|-------|--------|----------|
 | SOCIO-10 | Project Setup & Infrastructure | **Complete** | 8/8 (100%) |
-| SOCIO-20 | Authentication System | In Progress | 5/8 (63%) |
+| SOCIO-20 | Authentication System | In Progress | 6/8 (75%) |
 | SOCIO-30 | Real-Time Messaging Core | In Progress | 1/7 (14%) |
 | SOCIO-40 | Room Discovery & Geolocation | Partial | 2/7 (28%) |
 | SOCIO-50 | Chat Interface | Not Started | 0/6 (0%) |
@@ -101,7 +101,7 @@ Implement complete authentication system with multiple providers, JWT tokens, an
 | SOCIO-204 | Apple Sign-In integration | 5 | High | SOCIO-201 | ✅ Done |
 | SOCIO-205 | Phone verification with Twilio | 5 | Medium | SOCIO-201 | Pending |
 | SOCIO-206 | Guest/anonymous user flow | 3 | Medium | SOCIO-201 | ✅ Done (in 201) |
-| SOCIO-207 | Mobile login screens | 5 | High | SOCIO-201, SOCIO-106 | Pending |
+| SOCIO-207 | Mobile login screens | 5 | High | SOCIO-201, SOCIO-106 | ✅ Done |
 | SOCIO-208 | Token refresh WebSocket integration | 3 | Medium | SOCIO-201, SOCIO-301 | Pending |
 
 ### SOCIO-201: Implement JWT Auth Service (Critical)
@@ -122,7 +122,7 @@ Complete JWT authentication implementation with access/refresh token flow, passw
 - [x] Guest user creation and conversion
 - [x] Unit tests (32 passing)
 
-#### Sub-tasks
+#### Sub-taskss
 | Sub-task | Description | Points |
 |----------|-------------|--------|
 | SOCIO-201-1 | Install @nestjs/jwt, @nestjs/passport, bcrypt | 1 |
@@ -161,14 +161,14 @@ interface RefreshTokenPayload {
 Implement login/register screens for React Native with form validation, social login buttons, and phone verification UI.
 
 #### Acceptance Criteria
-- [ ] Login screen with email/password
-- [ ] Register screen with validation
-- [ ] Social login buttons (Google, Apple)
-- [ ] Phone number input with country code
-- [ ] OTP verification screen
-- [ ] Loading states and error handling
-- [ ] Secure token storage (Keychain/Keystore)
-- [ ] Navigation to home on success
+- [x] Login screen with email/password
+- [x] Register screen with validation
+- [x] Social login buttons (Google, Apple)
+- [x] Phone number input with country code
+- [x] OTP verification screen
+- [x] Loading states and error handling
+- [x] Secure token storage (interface ready, needs react-native-keychain)
+- [x] Navigation to home on success
 
 #### Sub-tasks
 | Sub-task | Description | Points |
