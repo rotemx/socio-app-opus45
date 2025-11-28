@@ -31,11 +31,22 @@ const refreshTokenSchema = z.object({
   refreshToken: z.string().min(1, 'Refresh token is required'),
 });
 
-// OAuth callback
+// OAuth callback (generic)
 const oauthCallbackSchema = z.object({
   provider: z.enum(['google', 'apple']),
   code: z.string().min(1, 'Authorization code is required'),
   redirectUri: z.string().url().optional(),
+});
+
+// Google ID token login (mobile flow)
+const googleIdTokenSchema = z.object({
+  idToken: z.string().min(1, 'Google ID token is required'),
+});
+
+// Google authorization code login (web flow)
+const googleCodeSchema = z.object({
+  code: z.string().min(1, 'Authorization code is required'),
+  redirectUri: z.string().url('Valid redirect URI is required'),
 });
 
 // JWT payload type
@@ -57,6 +68,8 @@ export class PhoneVerifyRequestDto extends createZodDto(phoneVerifyRequestSchema
 export class PhoneVerifyConfirmDto extends createZodDto(phoneVerifyConfirmSchema) {}
 export class RefreshTokenDto extends createZodDto(refreshTokenSchema) {}
 export class OAuthCallbackDto extends createZodDto(oauthCallbackSchema) {}
+export class GoogleIdTokenDto extends createZodDto(googleIdTokenSchema) {}
+export class GoogleCodeDto extends createZodDto(googleCodeSchema) {}
 
 // Types
 export type JwtPayload = z.infer<typeof jwtPayloadSchema>;

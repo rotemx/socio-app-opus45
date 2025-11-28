@@ -3,6 +3,7 @@ export { AuthModule } from './auth.module';
 export { AuthService } from './auth.service';
 export { AuthController } from './auth.controller';
 export { PasswordService } from './password.service';
+export { GoogleOAuthService, type GoogleUserInfo } from './google-oauth.service';
 export { JwtStrategy } from './strategies/jwt.strategy';
 export { CurrentUser } from './decorators/current-user.decorator';
 

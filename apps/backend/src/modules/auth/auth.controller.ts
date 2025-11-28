@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Headers,
@@ -17,6 +18,8 @@ import {
   type PhoneVerifyRequestDto,
   type PhoneVerifyConfirmDto,
   type OAuthCallbackDto,
+  type GoogleIdTokenDto,
+  type GoogleCodeDto,
 } from './dto/auth.dto';
 import { Public } from '../../common/decorators';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -145,14 +148,55 @@ export class AuthController {
   }
 
   /**
-   * OAuth callback handler
+   * OAuth callback handler (generic)
    * POST /auth/oauth/callback
    */
   @Public()
   @Post('oauth/callback')
   @HttpCode(HttpStatus.OK)
-  async oauthCallback(@Body() _dto: OAuthCallbackDto) {
-    // TODO: Implement OAuth flow (Google, Apple) (SOCIO-203, SOCIO-204)
-    throw new NotImplementedException('OAuth callback not yet implemented');
+  async oauthCallback(
+    @Body() dto: OAuthCallbackDto,
+    @Headers('x-device-id') deviceId?: string,
+  ) {
+    if (dto.provider === 'google') {
+      if (!dto.redirectUri) {
+        throw new BadRequestException('Redirect URI is required for Google OAuth code flow');
+      }
+      return this.authService.loginWithGoogleCode(dto.code, dto.redirectUri, deviceId);
+    }
+    // TODO: Implement Apple OAuth flow (SOCIO-204)
+    throw new NotImplementedException('Apple OAuth not yet implemented');
+  }
+
+  /**
+   * Google OAuth with ID token (mobile flow)
+   * POST /auth/google/token
+   *
+   * For mobile apps using Google Sign-In SDK that provides an ID token
+   */
+  @Public()
+  @Post('google/token')
+  @HttpCode(HttpStatus.OK)
+  async googleIdTokenLogin(
+    @Body() dto: GoogleIdTokenDto,
+    @Headers('x-device-id') deviceId?: string,
+  ) {
+    return this.authService.loginWithGoogleIdToken(dto.idToken, deviceId);
+  }
+
+  /**
+   * Google OAuth with authorization code (web flow)
+   * POST /auth/google/code
+   *
+   * For web apps using OAuth redirect flow
+   */
+  @Public()
+  @Post('google/code')
+  @HttpCode(HttpStatus.OK)
+  async googleCodeLogin(
+    @Body() dto: GoogleCodeDto,
+    @Headers('x-device-id') deviceId?: string,
+  ) {
+    return this.authService.loginWithGoogleCode(dto.code, dto.redirectUri, deviceId);
   }
 }

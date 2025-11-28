@@ -27,6 +27,10 @@ export const envSchema = z.object({
   HMS_SECRET: z.string().optional(),
   HMS_TEMPLATE_ID: z.string().optional(),
 
+  // Google OAuth
+  GOOGLE_CLIENT_ID: z.string().optional(),
+  GOOGLE_CLIENT_SECRET: z.string().optional(),
+
   // Twilio (Phone Verification)
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),

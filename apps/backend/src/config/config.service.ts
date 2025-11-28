@@ -65,6 +65,15 @@ export class AppConfigService {
     return this.envConfig.HMS_TEMPLATE_ID;
   }
 
+  // Google OAuth config
+  get googleClientId(): string | undefined {
+    return this.envConfig.GOOGLE_CLIENT_ID;
+  }
+
+  get googleClientSecret(): string | undefined {
+    return this.envConfig.GOOGLE_CLIENT_SECRET;
+  }
+
   // Twilio config
   get twilioAccountSid(): string | undefined {
     return this.envConfig.TWILIO_ACCOUNT_SID;

@@ -4,7 +4,9 @@ import {
   UnauthorizedException,
   ConflictException,
   BadRequestException,
+  InternalServerErrorException,
 } from '@nestjs/common';
+import type { AuthProvider } from '@prisma/client';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { JwtService } from '@nestjs/jwt';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
@@ -13,6 +15,8 @@ import { PrismaService } from '../../database';
 import { AppConfigService } from '../../config';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { PasswordService } from './password.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { GoogleOAuthService, type GoogleUserInfo } from './google-oauth.service';
 import type { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
 import type {
   AccessTokenPayload,
@@ -35,6 +39,7 @@ export class AuthService {
     private readonly config: AppConfigService,
     private readonly jwtService: JwtService,
     private readonly passwordService: PasswordService,
+    private readonly googleOAuthService: GoogleOAuthService,
   ) {}
 
   /**
@@ -356,6 +361,205 @@ export class AuthService {
 
     // Generate new tokens
     return this.generateTokens(updatedUser.id, updatedUser.email, updatedUser.username, deviceId);
+  }
+
+  /**
+   * Authenticate with Google ID token (mobile flow)
+   * Verifies the token and creates/updates user, then returns JWT tokens
+   *
+   * @param idToken - Google ID token from mobile Sign-In SDK
+   * @param deviceId - Optional device identifier
+   * @returns JWT token pair
+   */
+  async loginWithGoogleIdToken(idToken: string, deviceId?: string): Promise<TokenPair> {
+    this.logger.log('Google ID token login attempt');
+
+    // Verify the token and get user info
+    const googleUser = await this.googleOAuthService.verifyIdToken(idToken);
+
+    // Find or create user
+    return this.handleOAuthLogin(googleUser, 'GOOGLE', deviceId);
+  }
+
+  /**
+   * Authenticate with Google authorization code (web flow)
+   * Exchanges the code for tokens and creates/updates user
+   *
+   * @param code - Authorization code from OAuth redirect
+   * @param redirectUri - The redirect URI used in the initial request
+   * @param deviceId - Optional device identifier
+   * @returns JWT token pair
+   */
+  async loginWithGoogleCode(code: string, redirectUri: string, deviceId?: string): Promise<TokenPair> {
+    this.logger.log('Google authorization code login attempt');
+
+    // Exchange code for user info
+    const googleUser = await this.googleOAuthService.exchangeCodeForUserInfo(code, redirectUri);
+
+    // Find or create user
+    return this.handleOAuthLogin(googleUser, 'GOOGLE', deviceId);
+  }
+
+  /**
+   * Handle OAuth login/registration
+   * Finds existing user by provider ID or email, or creates a new user
+   *
+   * @param oauthUser - User info from OAuth provider
+   * @param provider - Auth provider (GOOGLE, APPLE)
+   * @param deviceId - Optional device identifier
+   * @returns JWT token pair
+   */
+  private async handleOAuthLogin(
+    oauthUser: GoogleUserInfo,
+    provider: AuthProvider,
+    deviceId?: string,
+  ): Promise<TokenPair> {
+    // First, try to find user by provider ID
+    let user = await this.prisma.user.findFirst({
+      where: {
+        authProvider: provider,
+        authProviderId: oauthUser.id,
+      },
+    });
+
+    if (user) {
+      this.logger.log(`OAuth login for existing user: ${user.id}`);
+
+      // Check if user is active
+      if (!user.isActive) {
+        throw new UnauthorizedException('Account is deactivated');
+      }
+
+      // Update last active and potentially update profile info
+      await this.prisma.user.update({
+        where: { id: user.id },
+        data: {
+          lastActiveAt: new Date(),
+          // Update avatar if not set
+          ...(oauthUser.picture && !user.avatarUrl ? { avatarUrl: oauthUser.picture } : {}),
+        },
+      });
+
+      return this.generateTokens(user.id, user.email, user.username, deviceId);
+    }
+
+    // Check if user exists with same email (linking scenario)
+    if (oauthUser.email) {
+      const existingEmailUser = await this.prisma.user.findUnique({
+        where: { email: oauthUser.email },
+      });
+
+      if (existingEmailUser) {
+        // User exists with this email but different provider
+        // Link the OAuth account to existing user
+        this.logger.log(`Linking OAuth account to existing email user: ${existingEmailUser.id}`);
+
+        if (!existingEmailUser.isActive) {
+          throw new UnauthorizedException('Account is deactivated');
+        }
+
+        // Update user with OAuth provider info
+        // Note: This updates authProvider but preserves passwordHash, so users can still
+        // login with password. For full multi-provider support, consider a separate
+        // userAuthProviders table in a future migration.
+        await this.prisma.user.update({
+          where: { id: existingEmailUser.id },
+          data: {
+            authProvider: provider,
+            authProviderId: oauthUser.id,
+            lastActiveAt: new Date(),
+            // Set verified if Google verified the email
+            isVerified: oauthUser.emailVerified || existingEmailUser.isVerified,
+            // Update avatar if not set
+            ...(oauthUser.picture && !existingEmailUser.avatarUrl ? { avatarUrl: oauthUser.picture } : {}),
+          },
+        });
+
+        return this.generateTokens(existingEmailUser.id, existingEmailUser.email, existingEmailUser.username, deviceId);
+      }
+    }
+
+    // Create new user
+    this.logger.log(`Creating new user from OAuth: ${oauthUser.email}`);
+
+    // Ensure email is present for new user creation
+    if (!oauthUser.email) {
+      throw new BadRequestException('Email is required for OAuth registration');
+    }
+
+    // Generate a unique username from the name or email
+    const baseUsername = this.generateUsernameFromOAuth(oauthUser);
+    const username = await this.ensureUniqueUsername(baseUsername);
+
+    user = await this.prisma.user.create({
+      data: {
+        username,
+        email: oauthUser.email,
+        displayName: oauthUser.name,
+        avatarUrl: oauthUser.picture,
+        authProvider: provider,
+        authProviderId: oauthUser.id,
+        isVerified: oauthUser.emailVerified,
+      },
+    });
+
+    this.logger.log(`New OAuth user created: ${user.id}`);
+
+    return this.generateTokens(user.id, user.email, user.username, deviceId);
+  }
+
+  /**
+   * Generate a username from OAuth user info
+   */
+  private generateUsernameFromOAuth(oauthUser: GoogleUserInfo): string {
+    // Try to use name parts
+    if (oauthUser.givenName) {
+      const name = oauthUser.givenName.toLowerCase().replace(/[^a-z0-9]/g, '');
+      if (name.length >= 3) {
+        return name;
+      }
+    }
+
+    // Fall back to email prefix
+    if (oauthUser.email) {
+      const emailPrefix = oauthUser.email.split('@')[0];
+      if (emailPrefix) {
+        const cleanedPrefix = emailPrefix.toLowerCase().replace(/[^a-z0-9]/g, '');
+        if (cleanedPrefix.length >= 3) {
+          return cleanedPrefix.slice(0, 20); // Max 20 chars as base
+        }
+      }
+    }
+
+    // Last resort: random
+    return `user_${randomUUID().slice(0, 8)}`;
+  }
+
+  /**
+   * Ensure username is unique by appending numbers if needed
+   */
+  private async ensureUniqueUsername(baseUsername: string): Promise<string> {
+    const username = baseUsername.slice(0, 50); // Max 50 chars per schema
+    let suffix = 0;
+
+    // eslint-disable-next-line @typescript-eslint/no-unnecessary-condition, no-constant-condition -- loop until unique
+    while (true) {
+      const candidateUsername = suffix === 0 ? username : `${username.slice(0, 45)}${suffix}`;
+      const existing = await this.prisma.user.findUnique({
+        where: { username: candidateUsername },
+        select: { id: true },
+      });
+
+      if (!existing) {
+        return candidateUsername;
+      }
+
+      suffix++;
+      if (suffix > 9999) {
+        // Extremely unlikely, but prevent infinite loop
+        throw new InternalServerErrorException('Failed to generate unique username');
+      }
+    }
   }
 
   /**

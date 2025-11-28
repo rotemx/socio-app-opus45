@@ -4,6 +4,7 @@ import type { PrismaService } from '../../database';
 import type { AppConfigService } from '../../config';
 import type { JwtService } from '@nestjs/jwt';
 import type { PasswordService } from './password.service';
+import type { GoogleOAuthService } from './google-oauth.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -11,6 +12,7 @@ describe('AuthService', () => {
   let mockConfigService: Partial<AppConfigService>;
   let mockJwtService: jest.Mocked<Pick<JwtService, 'sign' | 'verify'>>;
   let mockPasswordService: jest.Mocked<Pick<PasswordService, 'hash' | 'verify'>>;
+  let mockGoogleOAuthService: jest.Mocked<Pick<GoogleOAuthService, 'verifyIdToken' | 'exchangeCodeForUserInfo'>>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -47,12 +49,18 @@ describe('AuthService', () => {
       verify: jest.fn(),
     };
 
+    mockGoogleOAuthService = {
+      verifyIdToken: jest.fn(),
+      exchangeCodeForUserInfo: jest.fn(),
+    };
+
     // Create service instance directly
     service = new AuthService(
       mockPrismaService as unknown as PrismaService,
       mockConfigService as AppConfigService,
       mockJwtService as unknown as JwtService,
       mockPasswordService as unknown as PasswordService,
+      mockGoogleOAuthService as unknown as GoogleOAuthService,
     );
   });
 
