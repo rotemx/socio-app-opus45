@@ -12,7 +12,7 @@
 | Epic | Title | Status | Progress |
 |------|-------|--------|----------|
 | SOCIO-10 | Project Setup & Infrastructure | **Complete** | 8/8 (100%) |
-| SOCIO-20 | Authentication System | Not Started | 0/8 (0%) |
+| SOCIO-20 | Authentication System | In Progress | 2/8 (25%) |
 | SOCIO-30 | Real-Time Messaging Core | Not Started | 0/7 (0%) |
 | SOCIO-40 | Room Discovery & Geolocation | Partial | 2/7 (28%) |
 | SOCIO-50 | Chat Interface | Not Started | 0/6 (0%) |
@@ -93,16 +93,16 @@ Implement complete authentication system with multiple providers, JWT tokens, an
 
 ### Tickets
 
-| Ticket | Title | Points | Priority | Dependencies |
-|--------|-------|--------|----------|--------------|
-| SOCIO-201 | Implement JWT auth service | 5 | Critical | SOCIO-104 |
-| SOCIO-202 | Create auth guards and decorators | 3 | Critical | SOCIO-201 |
-| SOCIO-203 | Google OAuth integration | 5 | High | SOCIO-201 |
-| SOCIO-204 | Apple Sign-In integration | 5 | High | SOCIO-201 |
-| SOCIO-205 | Phone verification with Twilio | 5 | Medium | SOCIO-201 |
-| SOCIO-206 | Guest/anonymous user flow | 3 | Medium | SOCIO-201 |
-| SOCIO-207 | Mobile login screens | 5 | High | SOCIO-201, SOCIO-106 |
-| SOCIO-208 | Token refresh WebSocket integration | 3 | Medium | SOCIO-201, SOCIO-301 |
+| Ticket | Title | Points | Priority | Dependencies | Status |
+|--------|-------|--------|----------|--------------|--------|
+| SOCIO-201 | Implement JWT auth service | 5 | Critical | SOCIO-104 | ✅ Done |
+| SOCIO-202 | Create auth guards and decorators | 3 | Critical | SOCIO-201 | Pending |
+| SOCIO-203 | Google OAuth integration | 5 | High | SOCIO-201 | Pending |
+| SOCIO-204 | Apple Sign-In integration | 5 | High | SOCIO-201 | Pending |
+| SOCIO-205 | Phone verification with Twilio | 5 | Medium | SOCIO-201 | Pending |
+| SOCIO-206 | Guest/anonymous user flow | 3 | Medium | SOCIO-201 | ✅ Done (in 201) |
+| SOCIO-207 | Mobile login screens | 5 | High | SOCIO-201, SOCIO-106 | Pending |
+| SOCIO-208 | Token refresh WebSocket integration | 3 | Medium | SOCIO-201, SOCIO-301 | Pending |
 
 ### SOCIO-201: Implement JWT Auth Service (Critical)
 
@@ -112,13 +112,15 @@ Implement complete authentication system with multiple providers, JWT tokens, an
 Complete JWT authentication implementation with access/refresh token flow, password hashing, and token validation.
 
 #### Acceptance Criteria
-- [ ] JWT access token generation (15-min expiry)
-- [ ] JWT refresh token generation (7-day expiry)
-- [ ] Password hashing with bcrypt (12 rounds)
-- [ ] Token validation and extraction
-- [ ] Token refresh with rotation
-- [ ] Refresh token family tracking (detect reuse)
-- [ ] Logout with token invalidation
+- [x] JWT access token generation (15-min expiry, configurable via JWT_EXPIRY)
+- [x] JWT refresh token generation (7-day expiry, configurable via JWT_REFRESH_EXPIRY)
+- [x] Password hashing with bcrypt (12 rounds)
+- [x] Token validation and extraction (JwtStrategy + verifyAccessToken)
+- [x] Token refresh with rotation
+- [x] Refresh token family tracking (detect reuse)
+- [x] Logout with token invalidation
+- [x] Guest user creation and conversion
+- [x] Unit tests (32 passing)
 
 #### Sub-tasks
 | Sub-task | Description | Points |

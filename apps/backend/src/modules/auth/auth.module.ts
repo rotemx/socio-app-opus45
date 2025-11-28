@@ -1,14 +1,31 @@
 import { Module } from '@nestjs/common';
+import { JwtModule } from '@nestjs/jwt';
+import { PassportModule } from '@nestjs/passport';
 import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
+import { PasswordService } from './password.service';
+import { JwtStrategy } from './strategies/jwt.strategy';
+import { AppConfigService } from '../../config';
 
 /**
  * Authentication Module
  * Provides authentication and authorization functionality
  */
 @Module({
+  imports: [
+    PassportModule.register({ defaultStrategy: 'jwt' }),
+    JwtModule.registerAsync({
+      inject: [AppConfigService],
+      useFactory: (config: AppConfigService) => ({
+        secret: config.jwtSecret,
+        signOptions: {
+          // Expiry is configured per-token in AuthService
+        },
+      }),
+    }),
+  ],
   controllers: [AuthController],
-  providers: [AuthService],
-  exports: [AuthService],
+  providers: [AuthService, PasswordService, JwtStrategy],
+  exports: [AuthService, PasswordService, JwtModule],
 })
 export class AuthModule {}
