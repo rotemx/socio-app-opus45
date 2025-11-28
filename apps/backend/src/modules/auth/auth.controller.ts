@@ -9,7 +9,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { AuthService } from './auth.service';
+import { type AuthService } from './auth.service';
 import {
   type LoginDto,
   type RegisterDto,

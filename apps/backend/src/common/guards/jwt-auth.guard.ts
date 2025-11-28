@@ -6,15 +6,34 @@ import {
 } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { Reflector } from '@nestjs/core';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { AuthService } from '../../modules/auth';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
 
 /**
  * JWT Authentication Guard for HTTP routes
  * Verifies JWT token and attaches user to request
+ *
+ * Applied globally in AppModule - all routes require authentication unless marked @Public()
+ *
+ * @example
+ * ```typescript
+ * // Public route (no auth required)
+ * @Public()
+ * @Get('health')
+ * healthCheck() {}
+ *
+ * // Protected route (auth required)
+ * @Get('profile')
+ * getProfile(@CurrentUser() user: AccessTokenPayload) {}
+ * ```
  */
 @Injectable()
 export class JwtAuthGuard implements CanActivate {
-  constructor(private reflector: Reflector) {}
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly authService: AuthService,
+  ) {}
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     // Check if route is marked as public
@@ -34,20 +53,33 @@ export class JwtAuthGuard implements CanActivate {
       throw new UnauthorizedException('Missing authentication token');
     }
 
-    // TODO: Implement JWT verification with AuthService
-    // When implementing:
-    // 1. Inject AuthService in constructor
-    // 2. const payload = await this.authService.verifyToken(token);
-    // 3. request.user = payload;
     try {
+      // Verify token and get payload
+      const payload = await this.authService.verifyAccessToken(token);
+
+      // Attach user to request for use in controllers
+      request.user = payload;
+
       return true;
-    } catch {
-      throw new UnauthorizedException('Invalid authentication token');
+    } catch (error) {
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+      throw new UnauthorizedException('Invalid or expired authentication token');
     }
   }
 
+  /**
+   * Extract JWT token from Authorization header
+   * Expected format: "Bearer <token>"
+   */
   private extractTokenFromHeader(request: { headers: { authorization?: string } }): string | null {
-    const [type, token] = request.headers.authorization?.split(' ') ?? [];
-    return type === 'Bearer' ? (token ?? null) : null;
+    const authHeader = request.headers.authorization;
+    if (!authHeader) {
+      return null;
+    }
+
+    const [type, token] = authHeader.split(' ');
+    return type === 'Bearer' && token ? token : null;
   }
 }
