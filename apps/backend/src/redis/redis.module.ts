@@ -65,6 +65,11 @@ function createRedisClient(options: RedisModuleOptions): Redis {
     lazyConnect: false,
   };
 
+  // Enable TLS if requested
+  if (options.tls) {
+    redisOptions.tls = {};
+  }
+
   if (options.url) {
     return new Redis(options.url, redisOptions);
   }

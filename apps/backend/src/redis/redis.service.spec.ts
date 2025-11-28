@@ -34,6 +34,7 @@ interface MockRedis {
   quit: jest.Mock;
   pipeline: jest.Mock;
   keys: jest.Mock;
+  scan: jest.Mock;
 }
 
 describe('RedisService', () => {
@@ -78,12 +79,11 @@ describe('RedisService', () => {
         expire: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
           [null, 0],
-          [null, 1],
-          [null, 1],
-          [null, 1],
+          [null, 0], // current count (0 = under limit)
         ]),
       }),
       keys: jest.fn(),
+      scan: jest.fn().mockResolvedValue(['0', []]), // Default: empty scan result
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -285,6 +285,18 @@ describe('RedisService', () => {
 
   describe('rate limiting', () => {
     it('should allow request under limit', async () => {
+      // Mock pipeline returns count of 0 (under limit)
+      mockRedis.pipeline.mockReturnValue({
+        zremrangebyscore: jest.fn().mockReturnThis(),
+        zcard: jest.fn().mockReturnThis(),
+        zadd: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          [null, 0], // zremrangebyscore result
+          [null, 0], // current count (0 = under limit)
+        ]),
+      });
+
       const result = await service.checkRateLimit('test-key', 10, 60);
 
       expect(result.allowed).toBe(true);
@@ -292,15 +304,17 @@ describe('RedisService', () => {
     });
 
     it('should deny request over limit', async () => {
-      const pipeline = mockRedis.pipeline() as unknown as {
-        exec: jest.Mock;
-      };
-      pipeline.exec.mockResolvedValue([
-        [null, 0],
-        [null, 1],
-        [null, 11], // Count over limit
-        [null, 1],
-      ]);
+      // Mock pipeline returns count at limit
+      mockRedis.pipeline.mockReturnValue({
+        zremrangebyscore: jest.fn().mockReturnThis(),
+        zcard: jest.fn().mockReturnThis(),
+        zadd: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          [null, 0], // zremrangebyscore result
+          [null, 10], // current count at limit
+        ]),
+      });
 
       const result = await service.checkRateLimit('test-key', 10, 60);
 
@@ -362,24 +376,79 @@ describe('RedisService', () => {
       expect(mockRedis.setex).toHaveBeenCalledWith('cache-key', 60, JSON.stringify(freshValue));
     });
 
-    it('should invalidate cache by pattern', async () => {
-      mockRedis.keys.mockResolvedValue(['key1', 'key2', 'key3']);
+    it('should invalidate cache by pattern using SCAN', async () => {
+      // Mock SCAN to return keys in first iteration, then complete
+      mockRedis.scan
+        .mockResolvedValueOnce(['0', ['key1', 'key2', 'key3']]);
       mockRedis.del.mockResolvedValue(3);
 
       const result = await service.invalidateCache('test:*');
 
       expect(result).toBe(3);
-      expect(mockRedis.keys).toHaveBeenCalledWith('test:*');
+      expect(mockRedis.scan).toHaveBeenCalledWith('0', 'MATCH', 'test:*', 'COUNT', 100);
       expect(mockRedis.del).toHaveBeenCalledWith('key1', 'key2', 'key3');
     });
 
+    it('should handle multiple SCAN iterations', async () => {
+      // Mock SCAN to return keys in multiple iterations
+      mockRedis.scan
+        .mockResolvedValueOnce(['5', ['key1', 'key2']]) // First batch, cursor 5
+        .mockResolvedValueOnce(['0', ['key3']]); // Second batch, cursor 0 = done
+      mockRedis.del.mockResolvedValue(2).mockResolvedValueOnce(2).mockResolvedValueOnce(1);
+
+      const result = await service.invalidateCache('test:*');
+
+      expect(result).toBe(3);
+      expect(mockRedis.scan).toHaveBeenCalledTimes(2);
+    });
+
     it('should return 0 when no keys to invalidate', async () => {
-      mockRedis.keys.mockResolvedValue([]);
+      mockRedis.scan.mockResolvedValue(['0', []]); // Empty result
 
       const result = await service.invalidateCache('nonexistent:*');
 
       expect(result).toBe(0);
       expect(mockRedis.del).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('error handling', () => {
+    it('should propagate Redis get errors', async () => {
+      mockRedis.get.mockRejectedValue(new Error('Connection refused'));
+
+      await expect(service.get('test-key')).rejects.toThrow('Connection refused');
+    });
+
+    it('should propagate Redis set errors', async () => {
+      mockRedis.set.mockRejectedValue(new Error('Operation timeout'));
+
+      await expect(service.set('test-key', 'value')).rejects.toThrow('Operation timeout');
+    });
+
+    it('should propagate pipeline execution errors', async () => {
+      mockRedis.pipeline.mockReturnValue({
+        zremrangebyscore: jest.fn().mockReturnThis(),
+        zcard: jest.fn().mockReturnThis(),
+        zadd: jest.fn().mockReturnThis(),
+        expire: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockRejectedValue(new Error('Pipeline failed')),
+      });
+
+      await expect(service.checkRateLimit('test-key', 10, 60)).rejects.toThrow('Pipeline failed');
+    });
+
+    it('should propagate publish errors', async () => {
+      mockRedis.publish.mockRejectedValue(new Error('Publish failed'));
+
+      await expect(service.publish('channel', 'message')).rejects.toThrow('Publish failed');
+    });
+
+    it('should handle setUserOnline errors', async () => {
+      mockRedis.setex.mockRejectedValue(new Error('Redis unavailable'));
+
+      await expect(
+        service.setUserOnline('user-123', { status: 'ONLINE' })
+      ).rejects.toThrow('Redis unavailable');
     });
   });
 });

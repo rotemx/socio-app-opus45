@@ -500,6 +500,7 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Check rate limit using sliding window
+   * Checks count BEFORE adding to avoid allowing limit+1 requests
    */
   async checkRateLimit(
     key: string,
@@ -510,31 +511,36 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const windowStart = now - windowSeconds * 1000;
     const rateLimitKey = `${REDIS_KEYS.RATE_LIMIT}:${key}`;
 
-    // Use pipeline for atomicity
-    const pipeline = this.client.pipeline();
+    // First, clean up old entries and get current count
+    const checkPipeline = this.client.pipeline();
+    checkPipeline.zremrangebyscore(rateLimitKey, '-inf', windowStart);
+    checkPipeline.zcard(rateLimitKey);
 
-    // Remove old entries
-    pipeline.zremrangebyscore(rateLimitKey, '-inf', windowStart);
-
-    // Add current request
-    pipeline.zadd(rateLimitKey, now, `${now}-${Math.random()}`);
-
-    // Get count
-    pipeline.zcard(rateLimitKey);
-
-    // Set expiry
-    pipeline.expire(rateLimitKey, windowSeconds);
-
-    const results = await pipeline.exec();
-    if (!results) {
+    const checkResults = await checkPipeline.exec();
+    if (!checkResults) {
       return { allowed: true, remaining: limit, resetAt: now + windowSeconds * 1000 };
     }
 
-    const count = results[2]?.[1] as number;
+    const currentCount = checkResults[1]?.[1] as number;
+
+    // Check if adding one more would exceed limit
+    if (currentCount >= limit) {
+      return {
+        allowed: false,
+        remaining: 0,
+        resetAt: now + windowSeconds * 1000,
+      };
+    }
+
+    // Only add the request if under limit
+    const addPipeline = this.client.pipeline();
+    addPipeline.zadd(rateLimitKey, now, `${now}-${Math.random()}`);
+    addPipeline.expire(rateLimitKey, windowSeconds);
+    await addPipeline.exec();
 
     return {
-      allowed: count <= limit,
-      remaining: Math.max(0, limit - count),
+      allowed: true,
+      remaining: Math.max(0, limit - currentCount - 1),
       resetAt: now + windowSeconds * 1000,
     };
   }
@@ -558,11 +564,21 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Invalidate cache
+   * Invalidate cache using SCAN (production-safe, non-blocking)
    */
   async invalidateCache(pattern: string): Promise<number> {
-    const keys = await this.client.keys(pattern);
-    if (keys.length === 0) return 0;
-    return this.client.del(...keys);
+    let deletedCount = 0;
+    let cursor = '0';
+
+    do {
+      const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+      cursor = nextCursor;
+
+      if (keys.length > 0) {
+        deletedCount += await this.client.del(...keys);
+      }
+    } while (cursor !== '0');
+
+    return deletedCount;
   }
 }

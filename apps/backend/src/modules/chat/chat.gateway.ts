@@ -17,7 +17,7 @@ import { ChatService } from './chat.service';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { AuthService } from '../auth';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
-import { RedisService, REDIS_PUBLISHER, REDIS_SUBSCRIBER } from '../../redis';
+import { RedisService, REDIS_PUBLISHER, REDIS_SUBSCRIBER, REDIS_CHANNELS } from '../../redis';
 import { WsAuthGuard } from '../../common/guards/ws-auth.guard';
 import type { AccessTokenPayload } from '../auth/types/token.types';
 import {
@@ -109,7 +109,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
    * Gateway initialization
    * Sets up Redis adapter for multi-instance support
    */
-  afterInit(server: Server): void {
+  async afterInit(server: Server): Promise<void> {
     // Set up Redis adapter for multi-instance Socket.io support
     try {
       const adapter = createAdapter(this.pubClient, this.subClient);
@@ -118,6 +118,32 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     } catch (error) {
       this.logger.error('Failed to initialize Redis adapter, falling back to in-memory adapter');
       this.logger.error(error instanceof Error ? error.message : 'Unknown error');
+    }
+
+    // Subscribe to user status updates for distributed grace period handling
+    // If a user connects on another instance, we should cancel their disconnect timer here
+    await this.redisService.subscribe(REDIS_CHANNELS.USER_STATUS, (channel, message) => {
+      try {
+        const data = JSON.parse(message) as { userId: string; status: string };
+        if (data.status !== 'OFFLINE') {
+          this.handleUserConnectedElsewhere(data.userId);
+        }
+      } catch (error) {
+        this.logger.error('Failed to parse user status message', error);
+      }
+    });
+  }
+
+  /**
+   * Handle notification that a user connected on another instance
+   * Cancels any pending disconnect grace period for this user on this instance
+   */
+  private handleUserConnectedElsewhere(userId: string): void {
+    const pendingDisconnect = this.disconnectGrace.get(userId);
+    if (pendingDisconnect) {
+      clearTimeout(pendingDisconnect);
+      this.disconnectGrace.delete(userId);
+      this.logger.debug(`Cancelled disconnect grace period for user ${userId} (connected elsewhere)`);
     }
   }
 

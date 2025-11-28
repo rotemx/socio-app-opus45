@@ -6,6 +6,7 @@ import { ConfigModule, AppConfigService } from './config';
 import { DatabaseModule } from './database';
 import { AwsModule } from './aws';
 import { RedisModule } from './redis';
+import { ScheduleModule } from '@nestjs/schedule';
 
 // Feature modules
 import { AuthModule } from './modules/auth';
@@ -37,11 +38,13 @@ import { HttpExceptionFilter } from './common/filters';
 
     // Redis for pub/sub and caching
     RedisModule.forRootAsync({
-      useFactory: (configService: AppConfigService) => ({
-        url: configService.redisUrl || 'redis://localhost:6379',
+      useFactory: (configService: AppConfigService) => ({n        url: configService.redisUrl || 'redis://localhost:6379',
       }),
       inject: [AppConfigService],
     }),
+
+    // Scheduled tasks
+    ScheduleModule.forRoot(),
 
     // Feature modules
     AuthModule,

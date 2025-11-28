@@ -1,4 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 import { type PrismaService } from '../../database';
 import { type UpdatePresenceDto, type PresenceResponse } from './dto/presence.dto';
 import { type PresenceStatus } from '@prisma/client';
@@ -187,6 +188,7 @@ export class PresenceService {
    * This should be called periodically by a cron job
    * Cleans up both Redis and database
    */
+  @Cron(CronExpression.EVERY_MINUTE)
   async cleanupStalePresences(): Promise<number> {
     // Clean up stale Redis entries
     const redisCleanedCount = await this.redisService.cleanupStalePresence(
