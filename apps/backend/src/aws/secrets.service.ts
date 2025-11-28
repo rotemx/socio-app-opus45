@@ -157,9 +157,7 @@ export class SecretsService implements OnModuleInit {
    *   "url": "postgresql://..."
    * }
    */
-  async getDatabaseCredentials(
-    secretId: string
-  ): Promise<{
+  async getDatabaseCredentials(secretId: string): Promise<{
     url: string;
     host: string;
     port: number;

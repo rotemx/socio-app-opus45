@@ -13,7 +13,7 @@
 |------|-------|--------|----------|
 | SOCIO-10 | Project Setup & Infrastructure | **Complete** | 8/8 (100%) |
 | SOCIO-20 | Authentication System | In Progress | 5/8 (63%) |
-| SOCIO-30 | Real-Time Messaging Core | Not Started | 0/7 (0%) |
+| SOCIO-30 | Real-Time Messaging Core | In Progress | 1/7 (14%) |
 | SOCIO-40 | Room Discovery & Geolocation | Partial | 2/7 (28%) |
 | SOCIO-50 | Chat Interface | Not Started | 0/6 (0%) |
 
@@ -192,15 +192,15 @@ Implement real-time messaging infrastructure with Socket.io, Redis pub/sub, and 
 
 ### Tickets
 
-| Ticket | Title | Points | Priority | Dependencies |
-|--------|-------|--------|----------|--------------|
-| SOCIO-301 | Socket.io gateway setup | 5 | Critical | SOCIO-201, SOCIO-104 |
-| SOCIO-302 | Redis pub/sub integration | 5 | Critical | SOCIO-301 |
-| SOCIO-303 | Message service with persistence | 5 | High | SOCIO-301 |
-| SOCIO-304 | Presence tracking service | 5 | High | SOCIO-301, SOCIO-302 |
-| SOCIO-305 | Typing indicators | 3 | Medium | SOCIO-301 |
-| SOCIO-306 | Read receipts implementation | 3 | Medium | SOCIO-303 |
-| SOCIO-307 | Rate limiting middleware | 5 | High | SOCIO-301 |
+| Ticket | Title | Points | Priority | Dependencies | Status |
+|--------|-------|--------|----------|--------------|--------|
+| SOCIO-301 | Socket.io gateway setup | 5 | Critical | SOCIO-201, SOCIO-104 | ✅ Done |
+| SOCIO-302 | Redis pub/sub integration | 5 | Critical | SOCIO-301 | Pending |
+| SOCIO-303 | Message service with persistence | 5 | High | SOCIO-301 | Pending |
+| SOCIO-304 | Presence tracking service | 5 | High | SOCIO-301, SOCIO-302 | Pending |
+| SOCIO-305 | Typing indicators | 3 | Medium | SOCIO-301 | Pending |
+| SOCIO-306 | Read receipts implementation | 3 | Medium | SOCIO-303 | Pending |
+| SOCIO-307 | Rate limiting middleware | 5 | High | SOCIO-301 | Pending |
 
 ### SOCIO-301: Socket.io Gateway Setup (Critical)
 
@@ -210,13 +210,13 @@ Implement real-time messaging infrastructure with Socket.io, Redis pub/sub, and 
 Implement authenticated WebSocket gateway with Socket.io for real-time messaging, room subscriptions, and event handling.
 
 #### Acceptance Criteria
-- [ ] WebSocket gateway accepts connections on /socket.io
-- [ ] JWT validation on handshake
-- [ ] Invalid tokens disconnect with error
-- [ ] Room join/leave with validation
-- [ ] Message broadcast to room members
-- [ ] Connection/disconnection event handling
-- [ ] Graceful reconnection support (30s grace)
+- [x] WebSocket gateway accepts connections on /socket.io
+- [x] JWT validation on handshake
+- [x] Invalid tokens disconnect with error
+- [x] Room join/leave with validation
+- [x] Message broadcast to room members
+- [x] Connection/disconnection event handling
+- [x] Graceful reconnection support (30s grace)
 
 #### Sub-tasks
 | Sub-task | Description | Points |

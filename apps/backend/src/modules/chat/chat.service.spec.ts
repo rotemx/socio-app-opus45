@@ -1,0 +1,271 @@
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
+import { ChatService } from './chat.service';
+import type { PrismaService } from '../../database';
+import type { PresenceService } from '../presence/presence.service';
+
+describe('ChatService', () => {
+  let service: ChatService;
+  let mockPrismaService: jest.Mocked<Pick<PrismaService, 'chatRoom' | 'roomMember' | 'message'>>;
+  let mockPresenceService: jest.Mocked<Pick<PresenceService, 'getRoomOnlineUsers' | 'setOffline'>>;
+
+  const mockRoom = {
+    id: 'room-1',
+    name: 'Test Room',
+    isActive: true,
+    isPublic: true,
+    maxMembers: 100,
+    _count: { members: 5 },
+  };
+
+  const mockMembership = {
+    roomId: 'room-1',
+    userId: 'user-1',
+    role: 'MEMBER',
+    isMuted: false,
+  };
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    mockPrismaService = {
+      chatRoom: {
+        findUnique: jest.fn(),
+        update: jest.fn(),
+      } as unknown as jest.Mocked<PrismaService['chatRoom']>,
+      roomMember: {
+        findUnique: jest.fn(),
+        create: jest.fn(),
+        update: jest.fn(),
+      } as unknown as jest.Mocked<PrismaService['roomMember']>,
+      message: {
+        create: jest.fn(),
+        findUnique: jest.fn(),
+        findMany: jest.fn(),
+        update: jest.fn(),
+      } as unknown as jest.Mocked<PrismaService['message']>,
+    };
+
+    mockPresenceService = {
+      getRoomOnlineUsers: jest.fn(),
+      setOffline: jest.fn(),
+    };
+
+    service = new ChatService(
+      mockPrismaService as unknown as PrismaService,
+      mockPresenceService as unknown as PresenceService
+    );
+  });
+
+  describe('validateRoomAccess', () => {
+    it('should return room info for existing member', async () => {
+      (mockPrismaService.chatRoom.findUnique as jest.Mock).mockResolvedValue(mockRoom);
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue(mockMembership);
+
+      const result = await service.validateRoomAccess('user-1', 'room-1');
+
+      expect(result).toEqual({
+        id: 'room-1',
+        name: 'Test Room',
+        memberCount: 5,
+        isMember: true,
+      });
+    });
+
+    it('should auto-join public room for non-member', async () => {
+      (mockPrismaService.chatRoom.findUnique as jest.Mock).mockResolvedValue(mockRoom);
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue(null);
+      (mockPrismaService.roomMember.create as jest.Mock).mockResolvedValue({});
+
+      const result = await service.validateRoomAccess('user-2', 'room-1');
+
+      expect(mockPrismaService.roomMember.create).toHaveBeenCalled();
+      expect(result.isMember).toBe(false);
+    });
+
+    it('should throw NotFoundException for non-existent room', async () => {
+      (mockPrismaService.chatRoom.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.validateRoomAccess('user-1', 'invalid-room')).rejects.toThrow(
+        NotFoundException
+      );
+    });
+
+    it('should throw ForbiddenException for inactive room', async () => {
+      (mockPrismaService.chatRoom.findUnique as jest.Mock).mockResolvedValue({
+        ...mockRoom,
+        isActive: false,
+      });
+
+      await expect(service.validateRoomAccess('user-1', 'room-1')).rejects.toThrow(
+        ForbiddenException
+      );
+    });
+
+    it('should throw ForbiddenException for private room non-member', async () => {
+      (mockPrismaService.chatRoom.findUnique as jest.Mock).mockResolvedValue({
+        ...mockRoom,
+        isPublic: false,
+      });
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.validateRoomAccess('user-2', 'room-1')).rejects.toThrow(
+        ForbiddenException
+      );
+    });
+
+    it('should throw ForbiddenException when room is full', async () => {
+      (mockPrismaService.chatRoom.findUnique as jest.Mock).mockResolvedValue({
+        ...mockRoom,
+        maxMembers: 5,
+      });
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.validateRoomAccess('user-2', 'room-1')).rejects.toThrow(
+        ForbiddenException
+      );
+    });
+  });
+
+  describe('getOnlineUsersInRoom', () => {
+    it('should return online user IDs', async () => {
+      mockPresenceService.getRoomOnlineUsers.mockResolvedValue(['user-1', 'user-2']);
+
+      const result = await service.getOnlineUsersInRoom('room-1');
+
+      expect(result).toEqual(['user-1', 'user-2']);
+      expect(mockPresenceService.getRoomOnlineUsers).toHaveBeenCalledWith('room-1');
+    });
+  });
+
+  describe('sendMessage', () => {
+    const savedMessage = {
+      id: 'msg-1',
+      roomId: 'room-1',
+      senderId: 'user-1',
+      content: 'Hello!',
+      replyToId: null,
+      createdAt: new Date(),
+    };
+
+    it('should save and return message', async () => {
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue(mockMembership);
+      (mockPrismaService.message.create as jest.Mock).mockResolvedValue(savedMessage);
+      (mockPrismaService.chatRoom.update as jest.Mock).mockResolvedValue({});
+      (mockPrismaService.roomMember.update as jest.Mock).mockResolvedValue({});
+
+      const result = await service.sendMessage('user-1', 'room-1', 'Hello!');
+
+      expect(result).toEqual(savedMessage);
+      expect(mockPrismaService.message.create).toHaveBeenCalledWith({
+        data: {
+          roomId: 'room-1',
+          senderId: 'user-1',
+          content: 'Hello!',
+          replyToId: undefined,
+        },
+      });
+    });
+
+    it('should throw ForbiddenException for non-member', async () => {
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.sendMessage('user-2', 'room-1', 'Hello!')).rejects.toThrow(
+        ForbiddenException
+      );
+    });
+
+    it('should throw ForbiddenException for muted user', async () => {
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue({
+        ...mockMembership,
+        isMuted: true,
+      });
+
+      await expect(service.sendMessage('user-1', 'room-1', 'Hello!')).rejects.toThrow(
+        ForbiddenException
+      );
+    });
+
+    it('should validate reply target', async () => {
+      (mockPrismaService.roomMember.findUnique as jest.Mock).mockResolvedValue(mockMembership);
+      (mockPrismaService.message.findUnique as jest.Mock).mockResolvedValue({
+        roomId: 'other-room',
+      });
+
+      await expect(service.sendMessage('user-1', 'room-1', 'Reply', 'msg-other')).rejects.toThrow(
+        ForbiddenException
+      );
+    });
+  });
+
+  describe('setUserOffline', () => {
+    it('should call presence service', async () => {
+      mockPresenceService.setOffline.mockResolvedValue();
+
+      await service.setUserOffline('user-1');
+
+      expect(mockPresenceService.setOffline).toHaveBeenCalledWith('user-1');
+    });
+  });
+
+  describe('markAsRead', () => {
+    it('should update lastReadAt', async () => {
+      (mockPrismaService.roomMember.update as jest.Mock).mockResolvedValue({});
+
+      await service.markAsRead('user-1', 'room-1');
+
+      expect(mockPrismaService.roomMember.update).toHaveBeenCalledWith({
+        where: { roomId_userId: { roomId: 'room-1', userId: 'user-1' } },
+        data: { lastReadAt: expect.any(Date) },
+      });
+    });
+  });
+
+  describe('deleteMessage', () => {
+    it('should soft delete message by sender', async () => {
+      (mockPrismaService.message.findUnique as jest.Mock).mockResolvedValue({
+        id: 'msg-1',
+        senderId: 'user-1',
+        room: { members: [] },
+      });
+      (mockPrismaService.message.update as jest.Mock).mockResolvedValue({});
+
+      await service.deleteMessage('msg-1', 'user-1');
+
+      expect(mockPrismaService.message.update).toHaveBeenCalledWith({
+        where: { id: 'msg-1' },
+        data: { isDeleted: true },
+      });
+    });
+
+    it('should allow moderator to delete', async () => {
+      (mockPrismaService.message.findUnique as jest.Mock).mockResolvedValue({
+        id: 'msg-1',
+        senderId: 'user-2',
+        room: { members: [{ role: 'MODERATOR' }] },
+      });
+      (mockPrismaService.message.update as jest.Mock).mockResolvedValue({});
+
+      await service.deleteMessage('msg-1', 'user-1');
+
+      expect(mockPrismaService.message.update).toHaveBeenCalled();
+    });
+
+    it('should throw NotFoundException for non-existent message', async () => {
+      (mockPrismaService.message.findUnique as jest.Mock).mockResolvedValue(null);
+
+      await expect(service.deleteMessage('invalid-msg', 'user-1')).rejects.toThrow(
+        NotFoundException
+      );
+    });
+
+    it('should throw ForbiddenException for unauthorized user', async () => {
+      (mockPrismaService.message.findUnique as jest.Mock).mockResolvedValue({
+        id: 'msg-1',
+        senderId: 'user-2',
+        room: { members: [{ role: 'MEMBER' }] },
+      });
+
+      await expect(service.deleteMessage('msg-1', 'user-1')).rejects.toThrow(ForbiddenException);
+    });
+  });
+});
