@@ -1,6 +1,11 @@
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
 import { type UsersService } from './users.service';
-import { type UpdateProfileDto, type UpdateSettingsDto, type UpdateLocationDto, type UserQueryDto } from './dto/users.dto';
+import {
+  type UpdateProfileDto,
+  type UpdateSettingsDto,
+  type UpdateLocationDto,
+  type UserQueryDto,
+} from './dto/users.dto';
 import { CurrentUser } from '../../common/decorators';
 import { type JwtPayload } from '../auth/dto/auth.dto';
 

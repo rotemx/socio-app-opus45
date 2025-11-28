@@ -18,14 +18,15 @@ describe('GoogleOAuthService', () => {
     aud: 'test-client-id',
   };
 
-  const createMockConfigService = (): AppConfigService => ({
-    get googleClientId() {
-      return configValues.googleClientId;
-    },
-    get googleClientSecret() {
-      return configValues.googleClientSecret;
-    },
-  }) as AppConfigService;
+  const createMockConfigService = (): AppConfigService =>
+    ({
+      get googleClientId() {
+        return configValues.googleClientId;
+      },
+      get googleClientSecret() {
+        return configValues.googleClientSecret;
+      },
+    }) as AppConfigService;
 
   beforeEach(() => {
     configValues = {
@@ -50,7 +51,7 @@ describe('GoogleOAuthService', () => {
       const result = await service.verifyIdToken('valid-id-token');
 
       expect(mockFetch).toHaveBeenCalledWith(
-        'https://oauth2.googleapis.com/tokeninfo?id_token=valid-id-token',
+        'https://oauth2.googleapis.com/tokeninfo?id_token=valid-id-token'
       );
       expect(result).toEqual({
         id: 'google-user-id',
@@ -70,7 +71,7 @@ describe('GoogleOAuthService', () => {
       } as Response);
 
       await expect(service.verifyIdToken('invalid-token')).rejects.toThrow(
-        new UnauthorizedException('Invalid Google ID token'),
+        new UnauthorizedException('Invalid Google ID token')
       );
     });
 
@@ -81,7 +82,7 @@ describe('GoogleOAuthService', () => {
       } as Response);
 
       await expect(service.verifyIdToken('token-with-wrong-aud')).rejects.toThrow(
-        new UnauthorizedException('Invalid Google ID token audience'),
+        new UnauthorizedException('Invalid Google ID token audience')
       );
     });
 
@@ -95,7 +96,7 @@ describe('GoogleOAuthService', () => {
       } as Response);
 
       await expect(service.verifyIdToken('expired-token')).rejects.toThrow(
-        new UnauthorizedException('Google ID token has expired'),
+        new UnauthorizedException('Google ID token has expired')
       );
     });
 
@@ -104,7 +105,7 @@ describe('GoogleOAuthService', () => {
       service = new GoogleOAuthService(createMockConfigService());
 
       await expect(service.verifyIdToken('any-token')).rejects.toThrow(
-        new InternalServerErrorException('Google OAuth not configured'),
+        new InternalServerErrorException('Google OAuth not configured')
       );
     });
 
@@ -112,7 +113,7 @@ describe('GoogleOAuthService', () => {
       jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Network error'));
 
       await expect(service.verifyIdToken('token')).rejects.toThrow(
-        new UnauthorizedException('Failed to verify Google ID token'),
+        new UnauthorizedException('Failed to verify Google ID token')
       );
     });
   });
@@ -140,7 +141,10 @@ describe('GoogleOAuthService', () => {
           json: async () => mockGoogleUserInfo,
         } as Response);
 
-      const result = await service.exchangeCodeForUserInfo('auth-code', 'https://example.com/callback');
+      const result = await service.exchangeCodeForUserInfo(
+        'auth-code',
+        'https://example.com/callback'
+      );
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(result).toEqual({
@@ -176,14 +180,17 @@ describe('GoogleOAuthService', () => {
           }),
         } as Response);
 
-      const result = await service.exchangeCodeForUserInfo('auth-code', 'https://example.com/callback');
+      const result = await service.exchangeCodeForUserInfo(
+        'auth-code',
+        'https://example.com/callback'
+      );
 
       expect(mockFetch).toHaveBeenCalledTimes(2);
       expect(mockFetch).toHaveBeenLastCalledWith(
         'https://www.googleapis.com/oauth2/v3/userinfo',
         expect.objectContaining({
           headers: { Authorization: 'Bearer access-token' },
-        }),
+        })
       );
       expect(result.id).toBe('google-user-id');
     });
@@ -195,7 +202,7 @@ describe('GoogleOAuthService', () => {
       } as Response);
 
       await expect(
-        service.exchangeCodeForUserInfo('invalid-code', 'https://example.com/callback'),
+        service.exchangeCodeForUserInfo('invalid-code', 'https://example.com/callback')
       ).rejects.toThrow(new UnauthorizedException('Failed to exchange authorization code'));
     });
 
@@ -204,7 +211,7 @@ describe('GoogleOAuthService', () => {
       service = new GoogleOAuthService(createMockConfigService());
 
       await expect(
-        service.exchangeCodeForUserInfo('code', 'https://example.com/callback'),
+        service.exchangeCodeForUserInfo('code', 'https://example.com/callback')
       ).rejects.toThrow(new InternalServerErrorException('Google OAuth not configured'));
     });
 
@@ -212,7 +219,7 @@ describe('GoogleOAuthService', () => {
       jest.spyOn(global, 'fetch').mockRejectedValue(new Error('Network error'));
 
       await expect(
-        service.exchangeCodeForUserInfo('code', 'https://example.com/callback'),
+        service.exchangeCodeForUserInfo('code', 'https://example.com/callback')
       ).rejects.toThrow(new UnauthorizedException('Failed to exchange authorization code'));
     });
   });

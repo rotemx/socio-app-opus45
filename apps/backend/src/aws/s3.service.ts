@@ -83,7 +83,7 @@ export class S3Service implements OnModuleInit {
       this.logger.log(`S3 client initialized for bucket: ${this.bucket}`);
     } else {
       this.logger.warn(
-        'S3 not configured - file uploads will be disabled. Set AWS_S3_BUCKET and AWS_REGION to enable.',
+        'S3 not configured - file uploads will be disabled. Set AWS_S3_BUCKET and AWS_REGION to enable.'
       );
     }
   }
@@ -264,7 +264,7 @@ export class S3Service implements OnModuleInit {
    */
   async list(
     prefix: string,
-    maxKeys: number = 100,
+    maxKeys: number = 100
   ): Promise<{ key: string; size: number; lastModified: Date }[]> {
     this.ensureConfigured();
 
@@ -277,11 +277,13 @@ export class S3Service implements OnModuleInit {
     try {
       const response = await this.client!.send(command);
 
-      return (response.Contents ?? []).map((obj: { Key?: string; Size?: number; LastModified?: Date }) => ({
-        key: obj.Key!,
-        size: obj.Size ?? 0,
-        lastModified: obj.LastModified ?? new Date(),
-      }));
+      return (response.Contents ?? []).map(
+        (obj: { Key?: string; Size?: number; LastModified?: Date }) => ({
+          key: obj.Key!,
+          size: obj.Size ?? 0,
+          lastModified: obj.LastModified ?? new Date(),
+        })
+      );
     } catch (error) {
       this.logger.error(`Failed to list files with prefix: ${prefix}`, error);
       throw error;
@@ -308,7 +310,7 @@ export class S3Service implements OnModuleInit {
   private ensureConfigured(): void {
     if (!this.isConfigured()) {
       throw new Error(
-        'S3 is not configured. Set AWS_S3_BUCKET, AWS_REGION, and credentials to enable file uploads.',
+        'S3 is not configured. Set AWS_S3_BUCKET, AWS_REGION, and credentials to enable file uploads.'
       );
     }
   }

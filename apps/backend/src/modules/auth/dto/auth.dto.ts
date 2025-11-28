@@ -49,6 +49,32 @@ const googleCodeSchema = z.object({
   redirectUri: z.string().url('Valid redirect URI is required'),
 });
 
+// Apple user info (only provided on first sign-in)
+const appleUserSchema = z
+  .object({
+    name: z
+      .object({
+        firstName: z.string().optional(),
+        lastName: z.string().optional(),
+      })
+      .optional(),
+    email: z.string().email().optional(),
+  })
+  .optional();
+
+// Apple identity token login (mobile flow)
+const appleIdTokenSchema = z.object({
+  identityToken: z.string().min(1, 'Apple identity token is required'),
+  user: appleUserSchema,
+});
+
+// Apple authorization code login (web flow)
+const appleCodeSchema = z.object({
+  code: z.string().min(1, 'Authorization code is required'),
+  redirectUri: z.string().url('Valid redirect URI is required'),
+  user: appleUserSchema,
+});
+
 // JWT payload type
 export const jwtPayloadSchema = z.object({
   sub: z.string().uuid(),
@@ -70,6 +96,8 @@ export class RefreshTokenDto extends createZodDto(refreshTokenSchema) {}
 export class OAuthCallbackDto extends createZodDto(oauthCallbackSchema) {}
 export class GoogleIdTokenDto extends createZodDto(googleIdTokenSchema) {}
 export class GoogleCodeDto extends createZodDto(googleCodeSchema) {}
+export class AppleIdTokenDto extends createZodDto(appleIdTokenSchema) {}
+export class AppleCodeDto extends createZodDto(appleCodeSchema) {}
 
 // Types
 export type JwtPayload = z.infer<typeof jwtPayloadSchema>;

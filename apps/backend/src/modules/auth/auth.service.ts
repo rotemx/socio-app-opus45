@@ -17,7 +17,22 @@ import { AppConfigService } from '../../config';
 import { PasswordService } from './password.service';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { GoogleOAuthService, type GoogleUserInfo } from './google-oauth.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { AppleOAuthService, type AppleUserInfo } from './apple-oauth.service';
 import type { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
+
+/**
+ * Common OAuth user info structure
+ * Used by handleOAuthLogin for both Google and Apple
+ */
+type OAuthUserInfo = GoogleUserInfo | AppleUserInfo;
+
+/**
+ * Helper to safely get picture from OAuth user (Google has it, Apple doesn't)
+ */
+function getOAuthPicture(user: OAuthUserInfo): string | undefined {
+  return 'picture' in user ? user.picture : undefined;
+}
 import type {
   AccessTokenPayload,
   RefreshTokenPayload,
@@ -40,6 +55,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly passwordService: PasswordService,
     private readonly googleOAuthService: GoogleOAuthService,
+    private readonly appleOAuthService: AppleOAuthService
   ) {}
 
   /**
@@ -98,10 +114,7 @@ export class AuthService {
     }
 
     // Verify password
-    const isPasswordValid = await this.passwordService.verify(
-      dto.password,
-      user.passwordHash,
-    );
+    const isPasswordValid = await this.passwordService.verify(dto.password, user.passwordHash);
 
     if (!isPasswordValid) {
       throw new UnauthorizedException('Invalid email or password');
@@ -136,7 +149,9 @@ export class AuthService {
         secret: this.config.jwtSecret,
       });
     } catch (error) {
-      this.logger.debug(`Token verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.debug(
+        `Token verification failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       throw new UnauthorizedException('Invalid refresh token');
     }
 
@@ -187,7 +202,7 @@ export class AuthService {
       storedToken.user.email,
       storedToken.user.username,
       deviceId ?? storedToken.deviceId ?? undefined,
-      storedToken.family, // Keep same family
+      storedToken.family // Keep same family
     );
   }
 
@@ -275,7 +290,9 @@ export class AuthService {
   /**
    * Create a guest user
    */
-  async createGuestUser(deviceId?: string): Promise<{ user: AuthenticatedUser; tokens: TokenPair }> {
+  async createGuestUser(
+    deviceId?: string
+  ): Promise<{ user: AuthenticatedUser; tokens: TokenPair }> {
     this.logger.log('Creating guest user');
 
     const guestUsername = `guest_${randomUUID().slice(0, 8)}`;
@@ -293,7 +310,14 @@ export class AuthService {
 
     // Generate sessionId before tokens so we can return it
     const sessionId = randomUUID();
-    const tokens = await this.generateTokens(user.id, null, user.username, deviceId, undefined, sessionId);
+    const tokens = await this.generateTokens(
+      user.id,
+      null,
+      user.username,
+      deviceId,
+      undefined,
+      sessionId
+    );
 
     return {
       user: {
@@ -310,7 +334,11 @@ export class AuthService {
   /**
    * Convert guest user to full account
    */
-  async convertGuestToUser(guestId: string, dto: RegisterDto, deviceId?: string): Promise<TokenPair> {
+  async convertGuestToUser(
+    guestId: string,
+    dto: RegisterDto,
+    deviceId?: string
+  ): Promise<TokenPair> {
     this.logger.log(`Converting guest to full user: ${guestId}`);
 
     // Verify guest exists and is actually a guest
@@ -390,7 +418,11 @@ export class AuthService {
    * @param deviceId - Optional device identifier
    * @returns JWT token pair
    */
-  async loginWithGoogleCode(code: string, redirectUri: string, deviceId?: string): Promise<TokenPair> {
+  async loginWithGoogleCode(
+    code: string,
+    redirectUri: string,
+    deviceId?: string
+  ): Promise<TokenPair> {
     this.logger.log('Google authorization code login attempt');
 
     // Exchange code for user info
@@ -398,6 +430,54 @@ export class AuthService {
 
     // Find or create user
     return this.handleOAuthLogin(googleUser, 'GOOGLE', deviceId);
+  }
+
+  /**
+   * Authenticate with Apple identity token (mobile flow)
+   * Verifies the token and creates/updates user, then returns JWT tokens
+   *
+   * @param identityToken - Apple identity token from Sign in with Apple SDK
+   * @param user - Optional user info (only provided on first sign-in)
+   * @param deviceId - Optional device identifier
+   * @returns JWT token pair
+   */
+  async loginWithAppleIdToken(
+    identityToken: string,
+    user?: { name?: { firstName?: string; lastName?: string }; email?: string },
+    deviceId?: string
+  ): Promise<TokenPair> {
+    this.logger.log('Apple identity token login attempt');
+
+    // Verify the token and get user info
+    const appleUser = await this.appleOAuthService.verifyIdentityToken(identityToken, user);
+
+    // Find or create user
+    return this.handleOAuthLogin(appleUser, 'APPLE', deviceId);
+  }
+
+  /**
+   * Authenticate with Apple authorization code (web flow)
+   * Exchanges the code for tokens and creates/updates user
+   *
+   * @param code - Authorization code from OAuth redirect
+   * @param redirectUri - The redirect URI used in the initial request
+   * @param user - Optional user info (only provided on first sign-in)
+   * @param deviceId - Optional device identifier
+   * @returns JWT token pair
+   */
+  async loginWithAppleCode(
+    code: string,
+    redirectUri: string,
+    user?: { name?: { firstName?: string; lastName?: string }; email?: string },
+    deviceId?: string
+  ): Promise<TokenPair> {
+    this.logger.log('Apple authorization code login attempt');
+
+    // Exchange code for user info
+    const appleUser = await this.appleOAuthService.exchangeCodeForUserInfo(code, redirectUri, user);
+
+    // Find or create user
+    return this.handleOAuthLogin(appleUser, 'APPLE', deviceId);
   }
 
   /**
@@ -410,9 +490,9 @@ export class AuthService {
    * @returns JWT token pair
    */
   private async handleOAuthLogin(
-    oauthUser: GoogleUserInfo,
+    oauthUser: OAuthUserInfo,
     provider: AuthProvider,
-    deviceId?: string,
+    deviceId?: string
   ): Promise<TokenPair> {
     // First, try to find user by provider ID
     let user = await this.prisma.user.findFirst({
@@ -431,12 +511,13 @@ export class AuthService {
       }
 
       // Update last active and potentially update profile info
+      const picture = getOAuthPicture(oauthUser);
       await this.prisma.user.update({
         where: { id: user.id },
         data: {
           lastActiveAt: new Date(),
-          // Update avatar if not set
-          ...(oauthUser.picture && !user.avatarUrl ? { avatarUrl: oauthUser.picture } : {}),
+          // Update avatar if not set (Google provides pictures, Apple doesn't)
+          ...(picture && !user.avatarUrl ? { avatarUrl: picture } : {}),
         },
       });
 
@@ -462,20 +543,26 @@ export class AuthService {
         // Note: This updates authProvider but preserves passwordHash, so users can still
         // login with password. For full multi-provider support, consider a separate
         // userAuthProviders table in a future migration.
+        const linkPicture = getOAuthPicture(oauthUser);
         await this.prisma.user.update({
           where: { id: existingEmailUser.id },
           data: {
             authProvider: provider,
             authProviderId: oauthUser.id,
             lastActiveAt: new Date(),
-            // Set verified if Google verified the email
+            // Set verified if OAuth provider verified the email
             isVerified: oauthUser.emailVerified || existingEmailUser.isVerified,
-            // Update avatar if not set
-            ...(oauthUser.picture && !existingEmailUser.avatarUrl ? { avatarUrl: oauthUser.picture } : {}),
+            // Update avatar if not set (Google provides pictures, Apple doesn't)
+            ...(linkPicture && !existingEmailUser.avatarUrl ? { avatarUrl: linkPicture } : {}),
           },
         });
 
-        return this.generateTokens(existingEmailUser.id, existingEmailUser.email, existingEmailUser.username, deviceId);
+        return this.generateTokens(
+          existingEmailUser.id,
+          existingEmailUser.email,
+          existingEmailUser.username,
+          deviceId
+        );
       }
     }
 
@@ -491,12 +578,13 @@ export class AuthService {
     const baseUsername = this.generateUsernameFromOAuth(oauthUser);
     const username = await this.ensureUniqueUsername(baseUsername);
 
+    const newUserPicture = getOAuthPicture(oauthUser);
     user = await this.prisma.user.create({
       data: {
         username,
         email: oauthUser.email,
         displayName: oauthUser.name,
-        avatarUrl: oauthUser.picture,
+        avatarUrl: newUserPicture,
         authProvider: provider,
         authProviderId: oauthUser.id,
         isVerified: oauthUser.emailVerified,
@@ -511,7 +599,7 @@ export class AuthService {
   /**
    * Generate a username from OAuth user info
    */
-  private generateUsernameFromOAuth(oauthUser: GoogleUserInfo): string {
+  private generateUsernameFromOAuth(oauthUser: OAuthUserInfo): string {
     // Try to use name parts
     if (oauthUser.givenName) {
       const name = oauthUser.givenName.toLowerCase().replace(/[^a-z0-9]/g, '');
@@ -571,7 +659,7 @@ export class AuthService {
     username: string,
     deviceId?: string,
     tokenFamily?: string,
-    providedSessionId?: string,
+    providedSessionId?: string
   ): Promise<TokenPair> {
     const sessionId = providedSessionId ?? randomUUID();
     const family = tokenFamily ?? randomUUID();

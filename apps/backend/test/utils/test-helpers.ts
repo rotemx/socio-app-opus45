@@ -4,9 +4,7 @@ import { type Type, type ModuleMetadata } from '@nestjs/common';
 /**
  * Create a testing module with common providers mocked
  */
-export async function createTestingModule(
-  metadata: ModuleMetadata
-): Promise<TestingModule> {
+export async function createTestingModule(metadata: ModuleMetadata): Promise<TestingModule> {
   return Test.createTestingModule(metadata).compile();
 }
 

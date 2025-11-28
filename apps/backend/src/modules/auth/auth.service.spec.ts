@@ -5,6 +5,7 @@ import type { AppConfigService } from '../../config';
 import type { JwtService } from '@nestjs/jwt';
 import type { PasswordService } from './password.service';
 import type { GoogleOAuthService } from './google-oauth.service';
+import type { AppleOAuthService } from './apple-oauth.service';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -12,7 +13,12 @@ describe('AuthService', () => {
   let mockConfigService: Partial<AppConfigService>;
   let mockJwtService: jest.Mocked<Pick<JwtService, 'sign' | 'verify'>>;
   let mockPasswordService: jest.Mocked<Pick<PasswordService, 'hash' | 'verify'>>;
-  let mockGoogleOAuthService: jest.Mocked<Pick<GoogleOAuthService, 'verifyIdToken' | 'exchangeCodeForUserInfo'>>;
+  let mockGoogleOAuthService: jest.Mocked<
+    Pick<GoogleOAuthService, 'verifyIdToken' | 'exchangeCodeForUserInfo'>
+  >;
+  let mockAppleOAuthService: jest.Mocked<
+    Pick<AppleOAuthService, 'verifyIdentityToken' | 'exchangeCodeForUserInfo'>
+  >;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -54,6 +60,11 @@ describe('AuthService', () => {
       exchangeCodeForUserInfo: jest.fn(),
     };
 
+    mockAppleOAuthService = {
+      verifyIdentityToken: jest.fn(),
+      exchangeCodeForUserInfo: jest.fn(),
+    };
+
     // Create service instance directly
     service = new AuthService(
       mockPrismaService as unknown as PrismaService,
@@ -61,6 +72,7 @@ describe('AuthService', () => {
       mockJwtService as unknown as JwtService,
       mockPasswordService as unknown as PasswordService,
       mockGoogleOAuthService as unknown as GoogleOAuthService,
+      mockAppleOAuthService as unknown as AppleOAuthService
     );
   });
 
@@ -303,7 +315,9 @@ describe('AuthService', () => {
         type: 'refresh',
       });
 
-      await expect(service.verifyAccessToken('refresh-token')).rejects.toThrow(UnauthorizedException);
+      await expect(service.verifyAccessToken('refresh-token')).rejects.toThrow(
+        UnauthorizedException
+      );
     });
   });
 
@@ -327,7 +341,7 @@ describe('AuthService', () => {
           data: expect.objectContaining({
             isGuest: true,
           }),
-        }),
+        })
       );
     });
   });
@@ -365,7 +379,7 @@ describe('AuthService', () => {
             isGuest: false,
             guestExpiresAt: null,
           }),
-        }),
+        })
       );
     });
 
@@ -375,13 +389,17 @@ describe('AuthService', () => {
         isGuest: false,
       });
 
-      await expect(service.convertGuestToUser('user-id', registerDto)).rejects.toThrow(BadRequestException);
+      await expect(service.convertGuestToUser('user-id', registerDto)).rejects.toThrow(
+        BadRequestException
+      );
     });
 
     it('should throw BadRequestException for non-existent user', async () => {
       (mockPrismaService.user.findUnique as jest.Mock).mockResolvedValue(null);
 
-      await expect(service.convertGuestToUser('fake-id', registerDto)).rejects.toThrow(BadRequestException);
+      await expect(service.convertGuestToUser('fake-id', registerDto)).rejects.toThrow(
+        BadRequestException
+      );
     });
   });
 

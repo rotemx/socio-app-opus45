@@ -42,3 +42,6 @@ apps/mobile/android/app/build
 # Prisma
 apps/backend/prisma/*.db
 apps/backend/prisma/*.db-journal
+/keys/android_client_secret_103898307141-92nbltquj6fvqi4ju44dhf10sal6vh70.apps.googleusercontent.com.json
+/keys/client_secret_103898307141-u7cdn94rs7ljbnmhdmhtacc6hu16ks99.apps.googleusercontent.com.json
+/keys/iOS_client_103898307141-tk0c0r9bbvle0b6qd57m2lj2gt9phv2n.apps.googleusercontent.com.plist

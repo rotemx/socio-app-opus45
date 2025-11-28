@@ -43,9 +43,7 @@ export class WsExceptionFilter extends BaseWsExceptionFilter {
 
     const errorResponse: WsErrorResponse = {
       event: 'error',
-      data: details
-        ? { code, message, details }
-        : { code, message },
+      data: details ? { code, message, details } : { code, message },
     };
 
     client.emit('error', errorResponse);

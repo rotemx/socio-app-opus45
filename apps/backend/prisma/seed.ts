@@ -45,9 +45,9 @@ async function main() {
       isVerified: true,
       currentLocation: {
         type: 'Point',
-        coordinates: [34.7750, 32.0800], // Near Tel Aviv
-        latitude: 32.0800,
-        longitude: 34.7750,
+        coordinates: [34.775, 32.08], // Near Tel Aviv
+        latitude: 32.08,
+        longitude: 34.775,
       },
       settings: {
         notifications: true,
@@ -68,9 +68,9 @@ async function main() {
       isVerified: true,
       currentLocation: {
         type: 'Point',
-        coordinates: [34.8500, 32.1000], // Herzliya area
-        latitude: 32.1000,
-        longitude: 34.8500,
+        coordinates: [34.85, 32.1], // Herzliya area
+        latitude: 32.1,
+        longitude: 34.85,
       },
       settings: {
         notifications: true,
@@ -123,9 +123,9 @@ async function main() {
       creatorId: user1.id,
       location: {
         type: 'Point',
-        coordinates: [34.7750, 32.0650],
-        latitude: 32.0650,
-        longitude: 34.7750,
+        coordinates: [34.775, 32.065],
+        latitude: 32.065,
+        longitude: 34.775,
       },
       radiusMeters: 1000,
       tags: ['hangout', 'rothschild', 'casual'],
@@ -151,9 +151,9 @@ async function main() {
       creatorId: user2.id,
       location: {
         type: 'Point',
-        coordinates: [34.7900, 32.0900],
-        latitude: 32.0900,
-        longitude: 34.7900,
+        coordinates: [34.79, 32.09],
+        latitude: 32.09,
+        longitude: 34.79,
       },
       radiusMeters: 500,
       tags: ['private', 'friends'],
@@ -200,9 +200,9 @@ async function main() {
       role: 'CREATOR',
       joinLocation: {
         type: 'Point',
-        coordinates: [34.7750, 32.0650],
-        latitude: 32.0650,
-        longitude: 34.7750,
+        coordinates: [34.775, 32.065],
+        latitude: 32.065,
+        longitude: 34.775,
       },
     },
   });
@@ -217,9 +217,9 @@ async function main() {
       role: 'CREATOR',
       joinLocation: {
         type: 'Point',
-        coordinates: [34.7900, 32.0900],
-        latitude: 32.0900,
-        longitude: 34.7900,
+        coordinates: [34.79, 32.09],
+        latitude: 32.09,
+        longitude: 34.79,
       },
     },
   });
@@ -233,9 +233,9 @@ async function main() {
       role: 'MEMBER',
       joinLocation: {
         type: 'Point',
-        coordinates: [34.7800, 32.0850],
-        latitude: 32.0850,
-        longitude: 34.7800,
+        coordinates: [34.78, 32.085],
+        latitude: 32.085,
+        longitude: 34.78,
       },
     },
   });
@@ -250,9 +250,9 @@ async function main() {
       role: 'MEMBER',
       joinLocation: {
         type: 'Point',
-        coordinates: [34.8500, 32.1000],
-        latitude: 32.1000,
-        longitude: 34.8500,
+        coordinates: [34.85, 32.1],
+        latitude: 32.1,
+        longitude: 34.85,
       },
     },
   });

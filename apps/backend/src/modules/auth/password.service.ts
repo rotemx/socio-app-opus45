@@ -37,7 +37,10 @@ export class PasswordService {
     try {
       return await bcrypt.compare(password, hash);
     } catch (error) {
-      this.logger.error('Password verification failed', error instanceof Error ? error.stack : error);
+      this.logger.error(
+        'Password verification failed',
+        error instanceof Error ? error.stack : error
+      );
       throw new Error('Failed to verify password');
     }
   }

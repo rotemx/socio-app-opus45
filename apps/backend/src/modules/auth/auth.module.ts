@@ -5,6 +5,7 @@ import { AuthController } from './auth.controller';
 import { AuthService } from './auth.service';
 import { PasswordService } from './password.service';
 import { GoogleOAuthService } from './google-oauth.service';
+import { AppleOAuthService } from './apple-oauth.service';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { AppConfigService } from '../../config';
 
@@ -26,7 +27,7 @@ import { AppConfigService } from '../../config';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, PasswordService, GoogleOAuthService, JwtStrategy],
-  exports: [AuthService, PasswordService, GoogleOAuthService, JwtModule],
+  providers: [AuthService, PasswordService, GoogleOAuthService, AppleOAuthService, JwtStrategy],
+  exports: [AuthService, PasswordService, GoogleOAuthService, AppleOAuthService, JwtModule],
 })
 export class AuthModule {}

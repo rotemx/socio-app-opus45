@@ -1,16 +1,12 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { MessagesService } from './messages.service';
-import { type SendMessageDto, type EditMessageDto, type GetMessagesDto, type MarkReadDto } from './dto/messages.dto';
+import {
+  type SendMessageDto,
+  type EditMessageDto,
+  type GetMessagesDto,
+  type MarkReadDto,
+} from './dto/messages.dto';
 import { CurrentUser } from '../../common/decorators';
 import { type JwtPayload } from '../auth/dto/auth.dto';
 

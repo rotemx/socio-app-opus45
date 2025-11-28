@@ -27,10 +27,7 @@ describe('WsAuthGuard', () => {
     guard = new WsAuthGuard(mockAuthService as unknown as AuthService);
   });
 
-  const createMockClient = (options: {
-    authToken?: string;
-    authHeader?: string;
-  }) => ({
+  const createMockClient = (options: { authToken?: string; authHeader?: string }) => ({
     handshake: {
       auth: options.authToken ? { token: options.authToken } : {},
       headers: options.authHeader ? { authorization: options.authHeader } : {},
@@ -38,7 +35,9 @@ describe('WsAuthGuard', () => {
     data: {} as Record<string, unknown>,
   });
 
-  const createMockExecutionContext = (client: ReturnType<typeof createMockClient>): ExecutionContext =>
+  const createMockExecutionContext = (
+    client: ReturnType<typeof createMockClient>
+  ): ExecutionContext =>
     ({
       switchToWs: () => ({
         getClient: () => client,

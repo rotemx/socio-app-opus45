@@ -74,6 +74,23 @@ export class AppConfigService {
     return this.envConfig.GOOGLE_CLIENT_SECRET;
   }
 
+  // Apple Sign-In config
+  get appleClientId(): string | undefined {
+    return this.envConfig.APPLE_CLIENT_ID;
+  }
+
+  get appleTeamId(): string | undefined {
+    return this.envConfig.APPLE_TEAM_ID;
+  }
+
+  get appleKeyId(): string | undefined {
+    return this.envConfig.APPLE_KEY_ID;
+  }
+
+  get applePrivateKey(): string | undefined {
+    return this.envConfig.APPLE_PRIVATE_KEY;
+  }
+
   // Twilio config
   get twilioAccountSid(): string | undefined {
     return this.envConfig.TWILIO_ACCOUNT_SID;

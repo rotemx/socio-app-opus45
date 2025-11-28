@@ -99,7 +99,7 @@ describe('RolesGuard', () => {
 
       expect(() => guard.canActivate(context)).toThrow(ForbiddenException);
       expect(() => guard.canActivate(context)).toThrow(
-        'Access denied. Required role(s): admin, moderator',
+        'Access denied. Required role(s): admin, moderator'
       );
     });
 

@@ -1,9 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  NotFoundException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { type Prisma } from '@prisma/client';
 import { type PrismaService } from '../../database';
 import {
@@ -148,7 +143,7 @@ export class MessagesService {
     const message = await this.findById(messageId);
 
     if (message.senderId !== userId) {
-      throw new ForbiddenException('Cannot edit another user\'s message');
+      throw new ForbiddenException("Cannot edit another user's message");
     }
 
     return this.prisma.message.update({

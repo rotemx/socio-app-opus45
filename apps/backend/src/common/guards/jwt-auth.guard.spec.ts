@@ -32,9 +32,7 @@ describe('JwtAuthGuard', () => {
     guard = new JwtAuthGuard(mockReflector, mockAuthService as unknown as AuthService);
   });
 
-  const createMockExecutionContext = (
-    authHeader?: string,
-  ): ExecutionContext => {
+  const createMockExecutionContext = (authHeader?: string): ExecutionContext => {
     const mockRequest = {
       headers: {
         authorization: authHeader,
@@ -98,13 +96,15 @@ describe('JwtAuthGuard', () => {
       const context = createMockExecutionContext('Bearer invalid-token');
 
       await expect(guard.canActivate(context)).rejects.toThrow(UnauthorizedException);
-      await expect(guard.canActivate(context)).rejects.toThrow('Invalid or expired authentication token');
+      await expect(guard.canActivate(context)).rejects.toThrow(
+        'Invalid or expired authentication token'
+      );
     });
 
     it('should rethrow UnauthorizedException from AuthService', async () => {
       mockReflector.getAllAndOverride.mockReturnValue(false);
       mockAuthService.verifyAccessToken.mockRejectedValue(
-        new UnauthorizedException('Token expired'),
+        new UnauthorizedException('Token expired')
       );
       const context = createMockExecutionContext('Bearer expired-token');
 

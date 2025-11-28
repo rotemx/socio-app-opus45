@@ -22,12 +22,17 @@ import type { AccessTokenPayload } from '../../modules/auth';
  * ```
  */
 export const CurrentUser = createParamDecorator(
-  (data: keyof AccessTokenPayload | undefined, ctx: ExecutionContext): AccessTokenPayload | unknown => {
+  (
+    data: keyof AccessTokenPayload | undefined,
+    ctx: ExecutionContext
+  ): AccessTokenPayload | unknown => {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user as AccessTokenPayload | undefined;
 
     if (!user) {
-      throw new UnauthorizedException('User not authenticated. Ensure route is protected by JwtAuthGuard.');
+      throw new UnauthorizedException(
+        'User not authenticated. Ensure route is protected by JwtAuthGuard.'
+      );
     }
 
     // If a specific property is requested, return only that
@@ -36,7 +41,7 @@ export const CurrentUser = createParamDecorator(
     }
 
     return user;
-  },
+  }
 );
 
 /**
@@ -55,7 +60,10 @@ export const CurrentUser = createParamDecorator(
  * ```
  */
 export const WsCurrentUser = createParamDecorator(
-  (data: keyof AccessTokenPayload | undefined, ctx: ExecutionContext): AccessTokenPayload | unknown => {
+  (
+    data: keyof AccessTokenPayload | undefined,
+    ctx: ExecutionContext
+  ): AccessTokenPayload | unknown => {
     const client = ctx.switchToWs().getClient();
     const user = client.data?.user as AccessTokenPayload | undefined;
 
@@ -72,5 +80,5 @@ export const WsCurrentUser = createParamDecorator(
     }
 
     return user;
-  },
+  }
 );

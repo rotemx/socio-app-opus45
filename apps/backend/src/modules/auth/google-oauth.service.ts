@@ -120,7 +120,9 @@ export class GoogleOAuthService {
       if (error instanceof UnauthorizedException || error instanceof InternalServerErrorException) {
         throw error;
       }
-      this.logger.error(`Failed to verify Google ID token: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to verify Google ID token: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       throw new UnauthorizedException('Failed to verify Google ID token');
     }
   }
@@ -180,7 +182,9 @@ export class GoogleOAuthService {
       if (error instanceof UnauthorizedException || error instanceof InternalServerErrorException) {
         throw error;
       }
-      this.logger.error(`Failed to exchange Google code: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to exchange Google code: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       throw new UnauthorizedException('Failed to exchange authorization code');
     }
   }
@@ -226,7 +230,9 @@ export class GoogleOAuthService {
       if (error instanceof UnauthorizedException) {
         throw error;
       }
-      this.logger.error(`Failed to get Google user info: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Failed to get Google user info: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       throw new UnauthorizedException('Failed to get user info from Google');
     }
   }

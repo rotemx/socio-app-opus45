@@ -70,7 +70,7 @@ describe('SecretsService', () => {
 
       // First call
       await service.getSecret('cached-secret');
-      
+
       // Second call
       const result = await service.getSecret('cached-secret');
 

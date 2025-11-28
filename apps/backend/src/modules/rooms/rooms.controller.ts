@@ -1,13 +1,4 @@
-import {
-  Body,
-  Controller,
-  Delete,
-  Get,
-  Param,
-  Patch,
-  Post,
-  Query,
-} from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { type RoomsService } from './rooms.service';
 import {
   type CreateRoomDto,
@@ -90,9 +81,8 @@ export class RoomsController {
     @CurrentUser() user: JwtPayload,
     @Body() dto: JoinRoomDto
   ) {
-    const location = dto.latitude && dto.longitude
-      ? { lat: dto.latitude, lng: dto.longitude }
-      : undefined;
+    const location =
+      dto.latitude && dto.longitude ? { lat: dto.latitude, lng: dto.longitude } : undefined;
     return this.roomsService.joinRoom(id, user.sub, location);
   }
 

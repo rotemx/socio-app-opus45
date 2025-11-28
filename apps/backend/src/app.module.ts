@@ -18,7 +18,11 @@ import { ChatModule } from './modules/chat/chat.module';
 import { JwtAuthGuard } from './common/guards';
 
 // Interceptors
-import { LoggingInterceptor, TransformInterceptor, TimeoutInterceptor } from './common/interceptors';
+import {
+  LoggingInterceptor,
+  TransformInterceptor,
+  TimeoutInterceptor,
+} from './common/interceptors';
 
 // Filters
 import { HttpExceptionFilter } from './common/filters';

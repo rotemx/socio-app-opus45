@@ -285,7 +285,10 @@ export class RoomsService {
     });
 
     return {
-      rooms: memberships.map((m) => ({ ...m.room, membership: { role: m.role, isMuted: m.isMuted } })),
+      rooms: memberships.map((m) => ({
+        ...m.room,
+        membership: { role: m.role, isMuted: m.isMuted },
+      })),
       cursor: memberships.length === limit ? memberships[memberships.length - 1]?.id : null,
     };
   }

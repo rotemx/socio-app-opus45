@@ -82,12 +82,14 @@ describe('S3Service', () => {
         url: 'https://cdn.example.com/test-key.jpg',
       });
 
-      expect(PutObjectCommand).toHaveBeenCalledWith(expect.objectContaining({
-        Bucket: 'test-bucket',
-        Key: 'test-key.jpg',
-        Body: options.body,
-        ContentType: 'image/jpeg',
-      }));
+      expect(PutObjectCommand).toHaveBeenCalledWith(
+        expect.objectContaining({
+          Bucket: 'test-bucket',
+          Key: 'test-key.jpg',
+          Body: options.body,
+          ContentType: 'image/jpeg',
+        })
+      );
       expect(s3ClientMock.send).toHaveBeenCalled();
     });
   });

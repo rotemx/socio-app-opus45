@@ -89,11 +89,7 @@ export class SpatialService {
   /**
    * Validate coordinate inputs
    */
-  private validateCoordinates(
-    lat: number,
-    lng: number,
-    context: string
-  ): void {
+  private validateCoordinates(lat: number, lng: number, context: string): void {
     if (!Number.isFinite(lat) || lat < -90 || lat > 90) {
       throw new Error(`Invalid latitude in ${context}: ${lat}`);
     }
@@ -117,12 +113,7 @@ export class SpatialService {
    * Calculate distance between two points in meters
    * Uses PostGIS ST_DistanceSphere for accurate geodesic distance
    */
-  async calculateDistance(
-    lat1: number,
-    lng1: number,
-    lat2: number,
-    lng2: number
-  ): Promise<number> {
+  async calculateDistance(lat1: number, lng1: number, lat2: number, lng2: number): Promise<number> {
     this.validateCoordinates(lat1, lng1, 'calculateDistance point 1');
     this.validateCoordinates(lat2, lng2, 'calculateDistance point 2');
 
@@ -191,22 +182,12 @@ export class SpatialService {
    * Find rooms within a radius of a given point
    * Uses PostGIS for efficient spatial queries
    */
-  async findRoomsWithinRadius(
-    options: RoomDiscoveryOptions
-  ): Promise<RoomWithDistance[]> {
+  async findRoomsWithinRadius(options: RoomDiscoveryOptions): Promise<RoomWithDistance[]> {
     // Validate input using Zod
     const validated = RoomDiscoveryOptionsSchema.parse(options);
-    const {
-      latitude,
-      longitude,
-      radiusMeters = 5000,
-      limit = 50,
-      offset = 0,
-    } = validated;
+    const { latitude, longitude, radiusMeters = 5000, limit = 50, offset = 0 } = validated;
 
-    this.logger.debug(
-      `Finding rooms within ${radiusMeters}m of (${latitude}, ${longitude})`
-    );
+    this.logger.debug(`Finding rooms within ${radiusMeters}m of (${latitude}, ${longitude})`);
 
     try {
       const rooms = await this.prisma.$queryRaw<RoomWithDistance[]>`
@@ -254,9 +235,7 @@ export class SpatialService {
   /**
    * Find rooms within radius with tag filtering
    */
-  async findRoomsWithinRadiusWithTags(
-    options: RoomDiscoveryOptions
-  ): Promise<RoomWithDistance[]> {
+  async findRoomsWithinRadiusWithTags(options: RoomDiscoveryOptions): Promise<RoomWithDistance[]> {
     // Validate input using Zod
     const validated = RoomDiscoveryOptionsSchema.parse(options);
     const {
@@ -272,9 +251,7 @@ export class SpatialService {
       return this.findRoomsWithinRadius(options);
     }
 
-    this.logger.debug(
-      `Finding rooms within ${radiusMeters}m with tags: ${tags.join(', ')}`
-    );
+    this.logger.debug(`Finding rooms within ${radiusMeters}m with tags: ${tags.join(', ')}`);
 
     try {
       const rooms = await this.prisma.$queryRaw<RoomWithDistance[]>`
@@ -381,9 +358,7 @@ export class SpatialService {
     }
 
     try {
-      const users = await this.prisma.$queryRaw<
-        { userId: string; distanceMeters: number }[]
-      >`
+      const users = await this.prisma.$queryRaw<{ userId: string; distanceMeters: number }[]>`
         SELECT
           u.id::text as "userId",
           ST_DistanceSphere(

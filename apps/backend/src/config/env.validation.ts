@@ -31,6 +31,12 @@ export const envSchema = z.object({
   GOOGLE_CLIENT_ID: z.string().optional(),
   GOOGLE_CLIENT_SECRET: z.string().optional(),
 
+  // Apple Sign-In
+  APPLE_CLIENT_ID: z.string().optional(), // Service ID (e.g., com.socio.app.signin)
+  APPLE_TEAM_ID: z.string().optional(), // 10-character Team ID
+  APPLE_KEY_ID: z.string().optional(), // Key ID from Apple Developer
+  APPLE_PRIVATE_KEY: z.string().optional(), // Private key contents (PEM format)
+
   // Twilio (Phone Verification)
   TWILIO_ACCOUNT_SID: z.string().optional(),
   TWILIO_AUTH_TOKEN: z.string().optional(),

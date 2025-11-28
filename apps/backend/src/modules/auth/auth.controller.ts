@@ -20,6 +20,8 @@ import {
   type OAuthCallbackDto,
   type GoogleIdTokenDto,
   type GoogleCodeDto,
+  type AppleIdTokenDto,
+  type AppleCodeDto,
 } from './dto/auth.dto';
 import { Public } from '../../common/decorators';
 import { CurrentUser } from './decorators/current-user.decorator';
@@ -39,10 +41,7 @@ export class AuthController {
    */
   @Public()
   @Post('register')
-  async register(
-    @Body() dto: RegisterDto,
-    @Headers('x-device-id') deviceId?: string,
-  ) {
+  async register(@Body() dto: RegisterDto, @Headers('x-device-id') deviceId?: string) {
     return this.authService.register(dto, deviceId);
   }
 
@@ -53,10 +52,7 @@ export class AuthController {
   @Public()
   @Post('login')
   @HttpCode(HttpStatus.OK)
-  async login(
-    @Body() dto: LoginDto,
-    @Headers('x-device-id') deviceId?: string,
-  ) {
+  async login(@Body() dto: LoginDto, @Headers('x-device-id') deviceId?: string) {
     return this.authService.login(dto, deviceId);
   }
 
@@ -67,10 +63,7 @@ export class AuthController {
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
-  async refreshTokens(
-    @Body() dto: RefreshTokenDto,
-    @Headers('x-device-id') deviceId?: string,
-  ) {
+  async refreshTokens(@Body() dto: RefreshTokenDto, @Headers('x-device-id') deviceId?: string) {
     return this.authService.refreshTokens(dto, deviceId);
   }
 
@@ -83,7 +76,7 @@ export class AuthController {
   @UseGuards(AuthGuard('jwt'))
   async logout(
     @CurrentUser() user: AccessTokenPayload,
-    @Headers('x-device-id') deviceId?: string,
+    @Headers('x-device-id') deviceId?: string
   ): Promise<void> {
     await this.authService.logout(user.sub, deviceId);
   }
@@ -118,7 +111,7 @@ export class AuthController {
   async convertGuest(
     @CurrentUser() user: AccessTokenPayload,
     @Body() dto: RegisterDto,
-    @Headers('x-device-id') deviceId?: string,
+    @Headers('x-device-id') deviceId?: string
   ) {
     return this.authService.convertGuestToUser(user.sub, dto, deviceId);
   }
@@ -154,18 +147,20 @@ export class AuthController {
   @Public()
   @Post('oauth/callback')
   @HttpCode(HttpStatus.OK)
-  async oauthCallback(
-    @Body() dto: OAuthCallbackDto,
-    @Headers('x-device-id') deviceId?: string,
-  ) {
+  async oauthCallback(@Body() dto: OAuthCallbackDto, @Headers('x-device-id') deviceId?: string) {
     if (dto.provider === 'google') {
       if (!dto.redirectUri) {
         throw new BadRequestException('Redirect URI is required for Google OAuth code flow');
       }
       return this.authService.loginWithGoogleCode(dto.code, dto.redirectUri, deviceId);
     }
-    // TODO: Implement Apple OAuth flow (SOCIO-204)
-    throw new NotImplementedException('Apple OAuth not yet implemented');
+    if (dto.provider === 'apple') {
+      if (!dto.redirectUri) {
+        throw new BadRequestException('Redirect URI is required for Apple OAuth code flow');
+      }
+      return this.authService.loginWithAppleCode(dto.code, dto.redirectUri, undefined, deviceId);
+    }
+    throw new BadRequestException('Unsupported OAuth provider');
   }
 
   /**
@@ -179,7 +174,7 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   async googleIdTokenLogin(
     @Body() dto: GoogleIdTokenDto,
-    @Headers('x-device-id') deviceId?: string,
+    @Headers('x-device-id') deviceId?: string
   ) {
     return this.authService.loginWithGoogleIdToken(dto.idToken, deviceId);
   }
@@ -193,10 +188,34 @@ export class AuthController {
   @Public()
   @Post('google/code')
   @HttpCode(HttpStatus.OK)
-  async googleCodeLogin(
-    @Body() dto: GoogleCodeDto,
-    @Headers('x-device-id') deviceId?: string,
-  ) {
+  async googleCodeLogin(@Body() dto: GoogleCodeDto, @Headers('x-device-id') deviceId?: string) {
     return this.authService.loginWithGoogleCode(dto.code, dto.redirectUri, deviceId);
+  }
+
+  /**
+   * Apple Sign-In with identity token (mobile flow)
+   * POST /auth/apple/token
+   *
+   * For mobile apps using Sign in with Apple SDK
+   * Note: user info (name, email) is only provided on FIRST sign-in
+   */
+  @Public()
+  @Post('apple/token')
+  @HttpCode(HttpStatus.OK)
+  async appleIdTokenLogin(@Body() dto: AppleIdTokenDto, @Headers('x-device-id') deviceId?: string) {
+    return this.authService.loginWithAppleIdToken(dto.identityToken, dto.user, deviceId);
+  }
+
+  /**
+   * Apple Sign-In with authorization code (web flow)
+   * POST /auth/apple/code
+   *
+   * For web apps using OAuth redirect flow
+   */
+  @Public()
+  @Post('apple/code')
+  @HttpCode(HttpStatus.OK)
+  async appleCodeLogin(@Body() dto: AppleCodeDto, @Headers('x-device-id') deviceId?: string) {
+    return this.authService.loginWithAppleCode(dto.code, dto.redirectUri, dto.user, deviceId);
   }
 }

@@ -15,12 +15,17 @@ import type { AccessTokenPayload } from '../types/token.types';
  * ```
  */
 export const CurrentUser = createParamDecorator(
-  (data: keyof AccessTokenPayload | undefined, ctx: ExecutionContext): AccessTokenPayload | unknown => {
+  (
+    data: keyof AccessTokenPayload | undefined,
+    ctx: ExecutionContext
+  ): AccessTokenPayload | unknown => {
     const request = ctx.switchToHttp().getRequest();
     const user = request.user as AccessTokenPayload;
 
     if (!user) {
-      throw new UnauthorizedException('User not authenticated. Ensure @UseGuards(AuthGuard("jwt")) is applied.');
+      throw new UnauthorizedException(
+        'User not authenticated. Ensure @UseGuards(AuthGuard("jwt")) is applied.'
+      );
     }
 
     // If a specific property is requested, return just that property
@@ -29,5 +34,5 @@ export const CurrentUser = createParamDecorator(
     }
 
     return user;
-  },
+  }
 );

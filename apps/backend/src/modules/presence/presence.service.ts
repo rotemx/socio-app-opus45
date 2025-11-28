@@ -188,10 +188,7 @@ export class PresenceService {
     if (presence.status !== 'OFFLINE') {
       if (timeSinceLastSeen > this.OFFLINE_THRESHOLD_MS) {
         effectiveStatus = 'OFFLINE';
-      } else if (
-        timeSinceLastSeen > this.AWAY_THRESHOLD_MS &&
-        presence.status === 'ONLINE'
-      ) {
+      } else if (timeSinceLastSeen > this.AWAY_THRESHOLD_MS && presence.status === 'ONLINE') {
         effectiveStatus = 'AWAY';
       }
     }

@@ -52,7 +52,7 @@ export class SecretsService implements OnModuleInit {
       this.logger.log(`Secrets Manager client initialized for region: ${this.config.awsRegion}`);
     } else {
       this.logger.warn(
-        'Secrets Manager not configured - AWS_REGION required. Secrets retrieval will be disabled.',
+        'Secrets Manager not configured - AWS_REGION required. Secrets retrieval will be disabled.'
       );
     }
   }
@@ -158,8 +158,14 @@ export class SecretsService implements OnModuleInit {
    * }
    */
   async getDatabaseCredentials(
-    secretId: string,
-  ): Promise<{ url: string; host: string; port: number; database: string; username: string } | null> {
+    secretId: string
+  ): Promise<{
+    url: string;
+    host: string;
+    port: number;
+    database: string;
+    username: string;
+  } | null> {
     const secret = await this.getSecret(secretId);
 
     if (!secret) {
