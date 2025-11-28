@@ -1,9 +1,40 @@
 import { io, type Socket } from 'socket.io-client';
+import { z } from 'zod';
 import type { Message, TypingIndicator, UserPresence } from '@socio/types';
 
 type MessageHandler = (message: Message) => void;
 type TypingHandler = (indicator: TypingIndicator) => void;
 type PresenceHandler = (presence: UserPresence) => void;
+
+/**
+ * Zod schema for token refresh response from the server
+ */
+const tokenRefreshResultSchema = z.object({
+  accessToken: z.string(),
+  refreshToken: z.string(),
+  expiresIn: z.number(),
+});
+
+/**
+ * Zod schema for token refresh error response
+ */
+const tokenRefreshErrorSchema = z.object({
+  code: z.string(),
+  message: z.string(),
+});
+
+/**
+ * Token refresh response from the server
+ */
+export type TokenRefreshResult = z.infer<typeof tokenRefreshResultSchema>;
+
+/**
+ * Token refresh error from the server
+ */
+export type TokenRefreshError = z.infer<typeof tokenRefreshErrorSchema>;
+
+type TokenRefreshHandler = (tokens: TokenRefreshResult) => void;
+type TokenRefreshErrorHandler = (error: TokenRefreshError) => void;
 
 // Safe environment variable access
 const WS_URL = (typeof process !== 'undefined' && process.env?.WS_URL) || 'http://localhost:3000';
@@ -13,6 +44,8 @@ class WebSocketService {
   private messageHandlers: Set<MessageHandler> = new Set();
   private typingHandlers: Set<TypingHandler> = new Set();
   private presenceHandlers: Set<PresenceHandler> = new Set();
+  private tokenRefreshHandlers: Set<TokenRefreshHandler> = new Set();
+  private tokenRefreshErrorHandlers: Set<TokenRefreshErrorHandler> = new Set();
 
   connect(token: string) {
     if (this.socket?.connected) {
@@ -48,6 +81,29 @@ class WebSocketService {
 
     this.socket.on('presence', (presence: UserPresence) => {
       this.presenceHandlers.forEach((handler) => handler(presence));
+    });
+
+    // Listen for token refresh events (from server-initiated or callback responses)
+    this.socket.on('auth:refreshed', (tokens: unknown) => {
+      const validatedTokens = tokenRefreshResultSchema.safeParse(tokens);
+      if (!validatedTokens.success) {
+        console.error('Invalid token refresh response:', validatedTokens.error.message);
+        return;
+      }
+      this.tokenRefreshHandlers.forEach((handler) => handler(validatedTokens.data));
+    });
+
+    // Listen for token refresh errors
+    this.socket.on('error', (error: unknown) => {
+      const validatedError = tokenRefreshErrorSchema.safeParse(error);
+      if (!validatedError.success) {
+        // Log non-token-refresh errors so they aren't silently dropped
+        console.error('WebSocket error:', error);
+        return;
+      }
+      if (validatedError.data.code === 'TOKEN_REFRESH_FAILED') {
+        this.tokenRefreshErrorHandlers.forEach((handler) => handler(validatedError.data));
+      }
     });
   }
 
@@ -89,6 +145,96 @@ class WebSocketService {
   onPresence(handler: PresenceHandler) {
     this.presenceHandlers.add(handler);
     return () => this.presenceHandlers.delete(handler);
+  }
+
+  /**
+   * Subscribe to token refresh events
+   * Called when tokens are successfully refreshed over WebSocket
+   */
+  onTokenRefresh(handler: TokenRefreshHandler) {
+    this.tokenRefreshHandlers.add(handler);
+    return () => this.tokenRefreshHandlers.delete(handler);
+  }
+
+  /**
+   * Subscribe to token refresh error events
+   */
+  onTokenRefreshError(handler: TokenRefreshErrorHandler) {
+    this.tokenRefreshErrorHandlers.add(handler);
+    return () => this.tokenRefreshErrorHandlers.delete(handler);
+  }
+
+  /**
+   * Refresh tokens over an active WebSocket connection
+   * This allows token refresh without disconnecting
+   *
+   * @param refreshToken - The refresh token to use
+   * @param timeoutMs - Timeout in milliseconds (default: 10000ms)
+   * @returns Promise that resolves with new tokens or rejects with error
+   *
+   * @example
+   * ```typescript
+   * try {
+   *   const tokens = await websocket.refreshTokens(currentRefreshToken);
+   *   // Store new tokens
+   *   await secureStorage.saveTokens(tokens);
+   * } catch (error) {
+   *   // Handle refresh failure - may need to re-authenticate
+   *   console.error('Token refresh failed:', error);
+   * }
+   * ```
+   */
+  refreshTokens(refreshToken: string, timeoutMs: number = 10000): Promise<TokenRefreshResult> {
+    return new Promise((resolve, reject) => {
+      if (!this.socket?.connected) {
+        reject(new Error('WebSocket not connected'));
+        return;
+      }
+
+      let isResolved = false;
+      const timeoutId = setTimeout(() => {
+        if (!isResolved) {
+          isResolved = true;
+          reject(new Error('Token refresh timed out'));
+        }
+      }, timeoutMs);
+
+      this.socket.emit(
+        'auth:refresh',
+        { refreshToken },
+        (response: unknown) => {
+          if (isResolved) return;
+          isResolved = true;
+          clearTimeout(timeoutId);
+
+          const tokenResult = tokenRefreshResultSchema.safeParse(response);
+          if (tokenResult.success) {
+            resolve(tokenResult.data);
+          } else {
+            const errorResult = tokenRefreshErrorSchema.safeParse(response);
+            const message = errorResult.success
+              ? errorResult.data.message
+              : 'Token refresh failed';
+            reject(new Error(message));
+          }
+        }
+      );
+    });
+  }
+
+  /**
+   * Check if the WebSocket is currently connected
+   */
+  isConnected(): boolean {
+    return this.socket?.connected ?? false;
+  }
+
+  /**
+   * Get the socket instance for advanced usage
+   * Use with caution - prefer the provided methods
+   */
+  getSocket(): Socket | null {
+    return this.socket;
   }
 }
 

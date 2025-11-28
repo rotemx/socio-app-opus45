@@ -12,7 +12,7 @@
 | Epic | Title | Status | Progress |
 |------|-------|--------|----------|
 | SOCIO-10 | Project Setup & Infrastructure | **Complete** | 8/8 (100%) |
-| SOCIO-20 | Authentication System | In Progress | 6/8 (75%) |
+| SOCIO-20 | Authentication System | In Progress | 7/8 (87%) |
 | SOCIO-30 | Real-Time Messaging Core | In Progress | 1/7 (14%) |
 | SOCIO-40 | Room Discovery & Geolocation | Partial | 2/7 (28%) |
 | SOCIO-50 | Chat Interface | Not Started | 0/6 (0%) |
@@ -102,7 +102,7 @@ Implement complete authentication system with multiple providers, JWT tokens, an
 | SOCIO-205 | Phone verification with Twilio | 5 | Medium | SOCIO-201 | Pending |
 | SOCIO-206 | Guest/anonymous user flow | 3 | Medium | SOCIO-201 | ✅ Done (in 201) |
 | SOCIO-207 | Mobile login screens | 5 | High | SOCIO-201, SOCIO-106 | ✅ Done |
-| SOCIO-208 | Token refresh WebSocket integration | 3 | Medium | SOCIO-201, SOCIO-301 | Pending |
+| SOCIO-208 | Token refresh WebSocket integration | 3 | Medium | SOCIO-201, SOCIO-301 | ✅ Done |
 
 ### SOCIO-201: Implement JWT Auth Service (Critical)
 

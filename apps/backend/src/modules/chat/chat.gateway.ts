@@ -4,12 +4,10 @@ import {
   SubscribeMessage,
   MessageBody,
   ConnectedSocket,
-  OnGatewayConnection,
-  OnGatewayDisconnect,
-  OnGatewayInit,
   WsException,
 } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
+import type { OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit } from '@nestjs/websockets';
+import type { Server, Socket } from 'socket.io';
 import { Logger, UseGuards, UsePipes } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
@@ -23,11 +21,13 @@ import {
   LeaveRoomDto,
   SendMessageDto,
   TypingDto,
+  WsTokenRefreshDto,
   type RoomJoinedResponse,
   type MessageResponse,
   type UserPresenceEvent,
   type TypingEvent,
   type WsErrorResponse,
+  type TokenRefreshResponse,
 } from './dto/chat.dto';
 
 /**
@@ -366,6 +366,86 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   handleHeartbeat(@ConnectedSocket() client: AuthenticatedSocket): { timestamp: number } {
     client.data.lastHeartbeat = Date.now();
     return { timestamp: Date.now() };
+  }
+
+  /**
+   * Handle token refresh during active WebSocket connection
+   * Allows clients to refresh tokens without disconnecting
+   *
+   * Note: This handler intentionally does NOT use @UseGuards(WsAuthGuard)
+   * because clients need to refresh when their access token is expired.
+   * The refresh token validation by authService.refreshTokens() provides
+   * the necessary authentication. The client.data.user is available from
+   * the initial authenticated connection.
+   *
+   * @example
+   * ```typescript
+   * socket.emit('auth:refresh', { refreshToken: 'your-refresh-token' }, (response) => {
+   *   if (response.accessToken) {
+   *     // Update local storage with new tokens
+   *   }
+   * });
+   *
+   * // Or listen for the event
+   * socket.on('auth:refreshed', (tokens) => {
+   *   // Update local storage with new tokens
+   * });
+   * ```
+   */
+  @UsePipes(new ZodValidationPipe(WsTokenRefreshDto))
+  @SubscribeMessage('auth:refresh')
+  async handleTokenRefresh(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: WsTokenRefreshDto
+  ): Promise<TokenRefreshResponse | WsErrorResponse> {
+    const user = client.data.user;
+
+    // Ensure the client was originally authenticated (has user data from initial connection)
+    if (!user) {
+      this.logger.warn('Token refresh attempted on unauthenticated socket');
+      throw new WsException({
+        code: 'UNAUTHORIZED',
+        message: 'Socket not authenticated',
+      });
+    }
+
+    try {
+      this.logger.debug(`Token refresh requested by user: ${user.sub}`);
+
+      // Refresh tokens using the auth service
+      const newTokens = await this.authService.refreshTokens(
+        { refreshToken: data.refreshToken },
+        user.deviceId
+      );
+
+      // Verify and get payload from new access token
+      const newPayload = await this.authService.verifyAccessToken(newTokens.accessToken);
+
+      // Update socket's user data with new token payload
+      client.data.user = newPayload;
+      client.data.lastHeartbeat = Date.now();
+
+      this.logger.debug(`Token refreshed successfully for user: ${newPayload.sub}`);
+
+      const response: TokenRefreshResponse = {
+        accessToken: newTokens.accessToken,
+        refreshToken: newTokens.refreshToken,
+        expiresIn: newTokens.expiresIn,
+      };
+
+      // Emit to the client as an event as well (for listeners)
+      client.emit('auth:refreshed', response);
+
+      return response;
+    } catch (error) {
+      const errorMessage = error instanceof Error ? error.message : 'Token refresh failed';
+      this.logger.warn(`Token refresh failed for user ${user.sub}: ${errorMessage}`);
+
+      throw new WsException({
+        code: 'TOKEN_REFRESH_FAILED',
+        message: errorMessage,
+      });
+    }
   }
 
   /**

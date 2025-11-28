@@ -71,3 +71,17 @@ export interface WsErrorResponse {
   message: string;
   details?: Record<string, unknown>;
 }
+
+// Token refresh request (for WebSocket auth refresh)
+const tokenRefreshSchema = z.object({
+  refreshToken: z.string().min(1, 'Refresh token is required'),
+});
+
+export class WsTokenRefreshDto extends createZodDto(tokenRefreshSchema) {}
+
+// Token refresh response
+export interface TokenRefreshResponse {
+  accessToken: string;
+  refreshToken: string;
+  expiresIn: number;
+}
