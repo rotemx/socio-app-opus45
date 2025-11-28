@@ -1010,7 +1010,7 @@ jobs:
 
 ```
 📦 SOCIO-1: MVP Foundation (Sprint 1-4)
-├── 📋 SOCIO-10: Project Setup & Infrastructure
+├── 📋 SOCIO-10: Project Setup & Infrastructure [8/8 ✅] COMPLETE
 │   ├── ✅ SOCIO-101: Initialize monorepo with Turborepo
 │   ├── ✅ SOCIO-102: Configure TypeScript base config
 │   ├── ✅ SOCIO-103: Setup ESLint and Prettier
@@ -1020,41 +1020,41 @@ jobs:
 │   ├── ✅ SOCIO-107: Configure AWS Free Tier resources
 │   └── ✅ SOCIO-108: Setup GitHub Actions CI pipeline
 │
-├── 📋 SOCIO-20: Authentication System
-│   ├── ✅ SOCIO-201: Implement JWT auth service
-│   ├── ✅ SOCIO-202: Create auth guards and decorators
-│   ├── ✅ SOCIO-203: Google OAuth integration
-│   ├── ✅ SOCIO-204: Apple Sign-In integration
-│   ├── ✅ SOCIO-205: Phone verification with Twilio
-│   ├── ✅ SOCIO-206: Guest/anonymous user flow
-│   ├── ✅ SOCIO-207: Mobile login screens
-│   └── ✅ SOCIO-208: Token refresh WebSocket integration
+├── 📋 SOCIO-20: Authentication System [0/8]
+│   ├── ⬜ SOCIO-201: Implement JWT auth service
+│   ├── ⬜ SOCIO-202: Create auth guards and decorators
+│   ├── ⬜ SOCIO-203: Google OAuth integration
+│   ├── ⬜ SOCIO-204: Apple Sign-In integration
+│   ├── ⬜ SOCIO-205: Phone verification with Twilio
+│   ├── ⬜ SOCIO-206: Guest/anonymous user flow
+│   ├── ⬜ SOCIO-207: Mobile login screens
+│   └── ⬜ SOCIO-208: Token refresh WebSocket integration
 │
-├── 📋 SOCIO-30: Real-Time Messaging Core
-│   ├── ✅ SOCIO-301: Socket.io gateway setup
-│   ├── ✅ SOCIO-302: Redis pub/sub integration
-│   ├── ✅ SOCIO-303: Message service with persistence
-│   ├── ✅ SOCIO-304: Presence tracking service
-│   ├── ✅ SOCIO-305: Typing indicators
-│   ├── ✅ SOCIO-306: Read receipts implementation
-│   └── ✅ SOCIO-307: Rate limiting middleware
+├── 📋 SOCIO-30: Real-Time Messaging Core [0/7]
+│   ├── ⬜ SOCIO-301: Socket.io gateway setup
+│   ├── ⬜ SOCIO-302: Redis pub/sub integration
+│   ├── ⬜ SOCIO-303: Message service with persistence
+│   ├── ⬜ SOCIO-304: Presence tracking service
+│   ├── ⬜ SOCIO-305: Typing indicators
+│   ├── ⬜ SOCIO-306: Read receipts implementation
+│   └── ⬜ SOCIO-307: Rate limiting middleware
 │
-├── 📋 SOCIO-40: Room Discovery & Geolocation
-│   ├── ✅ SOCIO-401: PostGIS spatial queries
-│   ├── ✅ SOCIO-402: Room CRUD endpoints
-│   ├── ✅ SOCIO-403: Dynamic room location calculation
-│   ├── ✅ SOCIO-404: Nearby rooms discovery API
-│   ├── ✅ SOCIO-405: Location permission handling (mobile)
-│   ├── ✅ SOCIO-406: Room discovery map view
-│   └── ✅ SOCIO-407: Room list with distance display
+├── 📋 SOCIO-40: Room Discovery & Geolocation [2/7]
+│   ├── ✅ SOCIO-401: PostGIS spatial queries (done in SOCIO-105)
+│   ├── ✅ SOCIO-402: Room CRUD endpoints (done in SOCIO-104)
+│   ├── ⬜ SOCIO-403: Dynamic room location calculation
+│   ├── ⬜ SOCIO-404: Nearby rooms discovery API
+│   ├── ⬜ SOCIO-405: Location permission handling (mobile)
+│   ├── ⬜ SOCIO-406: Room discovery map view
+│   └── ⬜ SOCIO-407: Room list with distance display
 │
-└── 📋 SOCIO-50: Chat Interface
-    ├── ✅ SOCIO-501: MessageBubble component
-    ├── ✅ SOCIO-502: ChatInput with media support
-    ├── ✅ SOCIO-503: Message list with infinite scroll
-    ├── ✅ SOCIO-504: Room header with members
-    ├── ✅ SOCIO-505: Zustand chat store
-    └── ✅ SOCIO-506: TanStack Query integration
+└── 📋 SOCIO-50: Chat Interface [0/6]
+    ├── ⬜ SOCIO-501: MessageBubble component
+    ├── ⬜ SOCIO-502: ChatInput with media support
+    ├── ⬜ SOCIO-503: Message list with infinite scroll
+    ├── ⬜ SOCIO-504: Room header with members
+    ├── ⬜ SOCIO-505: Zustand chat store
+    └── ⬜ SOCIO-506: TanStack Query integration
 
 📦 SOCIO-2: Voice/Video & Media (Sprint 5-7)
 ├── 📋 SOCIO-60: 100ms Integration

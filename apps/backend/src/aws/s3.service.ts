@@ -8,8 +8,10 @@ import {
   ListObjectsV2Command,
   type PutObjectCommandInput,
   type GetObjectCommandOutput,
+  type ObjectCannedACL,
 } from '@aws-sdk/client-s3';
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { AppConfigService } from '../config';
 import { z } from 'zod';
 
@@ -121,7 +123,7 @@ export class S3Service implements OnModuleInit {
       Body: validated.body,
       ContentType: validated.contentType,
       Metadata: validated.metadata,
-      ACL: validated.acl as any, // Cast to any to avoid strict type mismatch with ObjectCannedACL
+      ACL: validated.acl as ObjectCannedACL | undefined,
     };
 
     try {

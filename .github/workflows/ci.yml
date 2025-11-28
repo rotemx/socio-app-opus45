@@ -1,0 +1,453 @@
+# SOCIO-108: GitHub Actions CI Pipeline
+# Comprehensive CI/CD pipeline for the Socio monorepo
+#
+# Features:
+# - Change detection per workspace (backend, mobile, web, packages)
+# - Backend tests with PostgreSQL/PostGIS and Redis services
+# - Web build verification
+# - Mobile lint and typecheck (full build on macos-latest is expensive)
+# - Shared packages tests and typecheck
+# - Code coverage reporting
+# - Parallel job execution for speed
+
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+# Cancel in-progress runs for the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '20'
+  PNPM_VERSION: '10.20.0'
+
+# Minimum permissions for security
+permissions:
+  contents: read
+
+jobs:
+  # ============================================
+  # Change Detection
+  # ============================================
+  detect-changes:
+    name: Detect Changes
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      mobile: ${{ steps.filter.outputs.mobile }}
+      web: ${{ steps.filter.outputs.web }}
+      shared: ${{ steps.filter.outputs.shared }}
+      types: ${{ steps.filter.outputs.types }}
+      ui: ${{ steps.filter.outputs.ui }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Detect file changes
+        uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/backend/**'
+              - 'packages/types/**'
+              - 'packages/shared/**'
+              - 'pnpm-lock.yaml'
+            mobile:
+              - 'apps/mobile/**'
+              - 'packages/shared/**'
+              - 'packages/ui/**'
+              - 'packages/types/**'
+              - 'pnpm-lock.yaml'
+            web:
+              - 'apps/web/**'
+              - 'packages/shared/**'
+              - 'packages/ui/**'
+              - 'packages/types/**'
+              - 'pnpm-lock.yaml'
+            shared:
+              - 'packages/shared/**'
+              - 'packages/types/**'
+              - 'pnpm-lock.yaml'
+            types:
+              - 'packages/types/**'
+              - 'pnpm-lock.yaml'
+            ui:
+              - 'packages/ui/**'
+              - 'packages/types/**'
+              - 'pnpm-lock.yaml'
+
+  # ============================================
+  # Shared Packages - Types
+  # ============================================
+  types-check:
+    name: Types Package
+    needs: detect-changes
+    if: needs.detect-changes.outputs.types == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @socio/types lint
+
+      - name: Type check
+        run: pnpm --filter @socio/types typecheck
+
+      - name: Format check
+        run: pnpm --filter @socio/types format:check
+
+  # ============================================
+  # Shared Packages - Shared
+  # ============================================
+  shared-check:
+    name: Shared Package
+    needs: [detect-changes, types-check]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.shared == 'true' &&
+      (needs.types-check.result == 'success' || needs.types-check.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @socio/shared lint
+
+      - name: Type check
+        run: pnpm --filter @socio/shared typecheck
+
+      - name: Format check
+        run: pnpm --filter @socio/shared format:check
+
+      - name: Run tests
+        run: pnpm --filter @socio/shared test --passWithNoTests
+
+  # ============================================
+  # Shared Packages - UI
+  # ============================================
+  ui-check:
+    name: UI Package
+    needs: [detect-changes, types-check]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.ui == 'true' &&
+      (needs.types-check.result == 'success' || needs.types-check.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @socio/ui lint
+
+      - name: Type check
+        run: pnpm --filter @socio/ui typecheck
+
+      - name: Format check
+        run: pnpm --filter @socio/ui format:check
+
+      - name: Run tests
+        run: pnpm --filter @socio/ui test --passWithNoTests
+
+  # ============================================
+  # Backend Tests
+  # ============================================
+  backend-tests:
+    name: Backend Tests
+    needs: [detect-changes, types-check, shared-check]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.backend == 'true' &&
+      (needs.types-check.result == 'success' || needs.types-check.result == 'skipped') &&
+      (needs.shared-check.result == 'success' || needs.shared-check.result == 'skipped')
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgis/postgis:16-3.4
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: socio_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @socio/backend db:generate
+
+      - name: Run database migrations
+        run: pnpm --filter @socio/backend db:push
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/socio_test
+
+      - name: Initialize PostGIS extensions
+        run: |
+          PGPASSWORD=postgres psql -h localhost -U postgres -d socio_test -c "CREATE EXTENSION IF NOT EXISTS postgis;"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d socio_test -c "CREATE EXTENSION IF NOT EXISTS \"uuid-ossp\";"
+          PGPASSWORD=postgres psql -h localhost -U postgres -d socio_test -c "CREATE EXTENSION IF NOT EXISTS pg_trgm;"
+
+      - name: Lint
+        run: pnpm --filter @socio/backend lint
+
+      - name: Type check
+        run: pnpm --filter @socio/backend typecheck
+
+      - name: Format check
+        run: pnpm --filter @socio/backend format:check
+
+      - name: Run tests with coverage
+        run: pnpm --filter @socio/backend test:cov
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/socio_test
+          REDIS_URL: redis://localhost:6379
+          JWT_SECRET: test-jwt-secret-for-ci-minimum-32-chars
+          CORS_ORIGIN: http://localhost:3000
+          NODE_ENV: test
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v4
+        with:
+          files: apps/backend/coverage/lcov.info
+          flags: backend
+          name: backend-coverage
+          fail_ci_if_error: false
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV_TOKEN }}
+
+  # ============================================
+  # Web Build
+  # ============================================
+  web-build:
+    name: Web Build
+    needs: [detect-changes, types-check, shared-check, ui-check]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.web == 'true' &&
+      (needs.types-check.result == 'success' || needs.types-check.result == 'skipped') &&
+      (needs.shared-check.result == 'success' || needs.shared-check.result == 'skipped') &&
+      (needs.ui-check.result == 'success' || needs.ui-check.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @socio/web lint
+
+      - name: Type check
+        run: pnpm --filter @socio/web typecheck
+
+      - name: Format check
+        run: pnpm --filter @socio/web format:check
+
+      - name: Build
+        run: pnpm --filter @socio/web build
+
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-build
+          path: apps/web/dist
+          retention-days: 7
+
+  # ============================================
+  # Mobile Check
+  # ============================================
+  mobile-check:
+    name: Mobile Check
+    needs: [detect-changes, types-check, shared-check, ui-check]
+    if: |
+      always() &&
+      needs.detect-changes.outputs.mobile == 'true' &&
+      (needs.types-check.result == 'success' || needs.types-check.result == 'skipped') &&
+      (needs.shared-check.result == 'success' || needs.shared-check.result == 'skipped') &&
+      (needs.ui-check.result == 'success' || needs.ui-check.result == 'skipped')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm --filter @socio/mobile lint
+
+      - name: Type check
+        run: pnpm --filter @socio/mobile typecheck
+
+      - name: Format check
+        run: pnpm --filter @socio/mobile format:check
+
+      - name: Run tests
+        run: pnpm --filter @socio/mobile test --passWithNoTests
+
+  # ============================================
+  # All Checks Passed
+  # ============================================
+  ci-success:
+    name: CI Success
+    needs:
+      - detect-changes
+      - types-check
+      - shared-check
+      - ui-check
+      - backend-tests
+      - web-build
+      - mobile-check
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check all jobs
+        run: |
+          echo "Checking job results..."
+
+          failed=0
+
+          # Check each job result - only fail if the job actually failed
+          # Skipped jobs are OK (they were skipped due to no changes)
+
+          if [ "${{ needs.types-check.result }}" = "failure" ]; then
+            echo "::error::types-check failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.shared-check.result }}" = "failure" ]; then
+            echo "::error::shared-check failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.ui-check.result }}" = "failure" ]; then
+            echo "::error::ui-check failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.backend-tests.result }}" = "failure" ]; then
+            echo "::error::backend-tests failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.web-build.result }}" = "failure" ]; then
+            echo "::error::web-build failed"
+            failed=1
+          fi
+
+          if [ "${{ needs.mobile-check.result }}" = "failure" ]; then
+            echo "::error::mobile-check failed"
+            failed=1
+          fi
+
+          if [ $failed -eq 1 ]; then
+            echo "::error::One or more CI jobs failed"
+            exit 1
+          fi
+
+          echo "All CI checks passed!"

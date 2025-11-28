@@ -1,4 +1,5 @@
-import { Test, TestingModule } from '@nestjs/testing';
+import type { TestingModule } from '@nestjs/testing';
+import { Test } from '@nestjs/testing';
 import { SecretsService } from './secrets.service';
 import { AppConfigService } from '../config';
 import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-secrets-manager';
@@ -6,9 +7,13 @@ import { SecretsManagerClient, GetSecretValueCommand } from '@aws-sdk/client-sec
 // Mock AWS SDK
 jest.mock('@aws-sdk/client-secrets-manager');
 
+interface MockSecretsClient {
+  send: jest.Mock;
+}
+
 describe('SecretsService', () => {
   let service: SecretsService;
-  let secretsClientMock: any;
+  let secretsClientMock: MockSecretsClient;
 
   const mockConfigService = {
     awsRegion: 'il-central-1',

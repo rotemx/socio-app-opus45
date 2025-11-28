@@ -8,6 +8,7 @@ import {
   DescribeSecretCommand,
   type GetSecretValueCommandOutput,
 } from '@aws-sdk/client-secrets-manager';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { AppConfigService } from '../config';
 
 /**
