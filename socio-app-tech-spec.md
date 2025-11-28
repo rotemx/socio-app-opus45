@@ -1022,11 +1022,11 @@ jobs:
 │
 ├── 📋 SOCIO-20: Authentication System [0/8]
 │   ├── ⬜ SOCIO-201: Implement JWT auth service
-│   ├── ⬜ SOCIO-202: Create auth guards and decorators
-│   ├── ⬜ SOCIO-203: Google OAuth integration
-│   ├── ⬜ SOCIO-204: Apple Sign-In integration
-│   ├── ⬜ SOCIO-205: Phone verification with Twilio
-│   ├── ⬜ SOCIO-206: Guest/anonymous user flow
+│   ├── ✅ SOCIO-202: Create auth guards and decorators
+│   ├── ✅ SOCIO-203: Google OAuth integration
+│   ├── ✅ SOCIO-204: Apple Sign-In integration
+│   ├── ✅ SOCIO-205: Phone verification with Twilio
+│   ├── ✅ SOCIO-206: Guest/anonymous user flow
 │   ├── ⬜ SOCIO-207: Mobile login screens
 │   └── ⬜ SOCIO-208: Token refresh WebSocket integration
 │
