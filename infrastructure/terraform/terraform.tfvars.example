@@ -1,0 +1,78 @@
+# Socio Infrastructure - Terraform Variables
+# Copy this file to terraform.tfvars and customize as needed
+
+# =============================================================================
+# General Configuration
+# =============================================================================
+
+aws_region   = "il-central-1" # Tel Aviv
+environment  = "dev"          # dev, staging, prod
+project_name = "socio"
+
+# =============================================================================
+# VPC Configuration
+# =============================================================================
+
+vpc_cidr           = "10.0.0.0/16"
+enable_nat_gateway = false # Enable for private subnet internet access (~$32/mo)
+
+# =============================================================================
+# RDS Configuration (PostgreSQL with PostGIS)
+# =============================================================================
+
+db_instance_class          = "db.t3.micro" # Free Tier eligible
+db_name                    = "socio"
+db_username                = "socio_admin"
+db_allocated_storage       = 20  # GB (Free Tier: up to 20GB)
+db_backup_retention_period = 7   # days
+db_multi_az                = false # Enable for production (~$25/mo additional)
+
+# =============================================================================
+# ElastiCache Redis (Optional - adds ~$12/mo)
+# =============================================================================
+
+enable_redis          = false # Set to true when ready to use managed Redis
+redis_node_type       = "cache.t3.micro"
+redis_num_cache_nodes = 1
+
+# =============================================================================
+# S3 Configuration
+# =============================================================================
+
+s3_force_destroy      = true  # Allow bucket deletion in dev (set false in prod)
+s3_versioning_enabled = true
+s3_lifecycle_days     = 0     # Days before Glacier transition (0 = disabled)
+
+# =============================================================================
+# CloudFront Configuration
+# =============================================================================
+
+enable_cloudfront      = true
+cloudfront_price_class = "PriceClass_100" # US, Canada, Europe, Israel
+
+# =============================================================================
+# EC2/ECS Configuration (Optional)
+# =============================================================================
+
+enable_ec2        = false
+ec2_instance_type = "t3.micro" # Free Tier eligible
+
+# =============================================================================
+# ALB Configuration (Optional - adds ~$16/mo)
+# =============================================================================
+
+enable_alb = false # Enable when deploying to AWS
+
+# =============================================================================
+# Monitoring & Logging
+# =============================================================================
+
+enable_enhanced_monitoring = false # RDS enhanced monitoring
+log_retention_days         = 7
+
+# =============================================================================
+# Security
+# =============================================================================
+
+# Restrict to your IP in production
+allowed_cidr_blocks = ["0.0.0.0/0"]

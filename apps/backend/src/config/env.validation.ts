@@ -32,11 +32,13 @@ export const envSchema = z.object({
   TWILIO_AUTH_TOKEN: z.string().optional(),
   TWILIO_VERIFY_SERVICE_SID: z.string().optional(),
 
-  // AWS S3
+  // AWS Configuration
   AWS_ACCESS_KEY_ID: z.string().optional(),
   AWS_SECRET_ACCESS_KEY: z.string().optional(),
   AWS_S3_BUCKET: z.string().optional(),
   AWS_REGION: z.string().default('il-central-1'),
+  AWS_CLOUDFRONT_URL: z.string().url().optional(),
+  AWS_SECRETS_DB_ARN: z.string().optional(), // ARN for database credentials in Secrets Manager
 });
 
 export type EnvConfig = z.infer<typeof envSchema>;

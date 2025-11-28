@@ -4,6 +4,7 @@ import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 // Infrastructure
 import { ConfigModule } from './config';
 import { DatabaseModule } from './database';
+import { AwsModule } from './aws';
 
 // Feature modules
 import { AuthModule } from './modules/auth';
@@ -27,6 +28,7 @@ import { HttpExceptionFilter } from './common/filters';
     // Global configuration
     ConfigModule,
     DatabaseModule,
+    AwsModule,
 
     // Feature modules
     AuthModule,

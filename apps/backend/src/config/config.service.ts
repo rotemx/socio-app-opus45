@@ -94,4 +94,12 @@ export class AppConfigService {
   get awsRegion(): string {
     return this.envConfig.AWS_REGION;
   }
+
+  get awsCloudfrontUrl(): string | undefined {
+    return this.envConfig.AWS_CLOUDFRONT_URL;
+  }
+
+  get awsSecretsDbArn(): string | undefined {
+    return this.envConfig.AWS_SECRETS_DB_ARN;
+  }
 }
