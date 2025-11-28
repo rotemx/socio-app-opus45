@@ -2,13 +2,16 @@ import { Injectable, Logger } from '@nestjs/common';
 import { type PrismaService } from '../../database';
 import { type UpdatePresenceDto, type PresenceResponse } from './dto/presence.dto';
 import { type PresenceStatus } from '@prisma/client';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { RedisService } from '../../redis';
 
 // Default device ID for web clients
 const DEFAULT_DEVICE_ID = 'default';
 
 /**
  * Presence Service
- * Handles user online status tracking
+ * Handles user online status tracking with Redis for fast caching
+ * and PostgreSQL for persistence
  */
 @Injectable()
 export class PresenceService {
@@ -19,10 +22,14 @@ export class PresenceService {
   // Consider users offline after 15 minutes of inactivity
   private readonly OFFLINE_THRESHOLD_MS = 15 * 60 * 1000;
 
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly redisService: RedisService
+  ) {}
 
   /**
    * Update user's presence status
+   * Updates both Redis (for fast reads) and PostgreSQL (for persistence)
    */
   async updateStatus(
     userId: string,
@@ -31,6 +38,17 @@ export class PresenceService {
   ): Promise<void> {
     this.logger.debug(`Updating presence for user ${userId}: ${dto.status}`);
 
+    // Update Redis cache
+    if (dto.status === 'OFFLINE') {
+      await this.redisService.setUserOffline(userId);
+    } else {
+      await this.redisService.setUserOnline(userId, {
+        status: dto.status as 'ONLINE' | 'AWAY' | 'BUSY',
+        deviceId,
+      });
+    }
+
+    // Persist to database
     await this.prisma.userPresence.upsert({
       where: { userId_deviceId: { userId, deviceId } },
       update: {
@@ -47,8 +65,13 @@ export class PresenceService {
 
   /**
    * Record a heartbeat from the user (updates lastSeenAt)
+   * Updates Redis immediately, batches database updates
    */
   async heartbeat(userId: string, deviceId = DEFAULT_DEVICE_ID): Promise<void> {
+    // Update Redis immediately for fast reads
+    await this.redisService.heartbeat(userId);
+
+    // Persist to database (could be batched in production)
     await this.prisma.userPresence.upsert({
       where: { userId_deviceId: { userId, deviceId } },
       update: {
@@ -102,8 +125,16 @@ export class PresenceService {
 
   /**
    * Get online users in a room
+   * Uses Redis for fast lookups, falls back to database
    */
   async getRoomOnlineUsers(roomId: string): Promise<string[]> {
+    // Try Redis first for fast lookup
+    const redisOnlineUsers = await this.redisService.getOnlineUsersInRoom(roomId);
+    if (redisOnlineUsers.length > 0) {
+      return redisOnlineUsers;
+    }
+
+    // Fall back to database if Redis is empty or not available
     const thresholdTime = new Date(Date.now() - this.OFFLINE_THRESHOLD_MS);
 
     const members = await this.prisma.roomMember.findMany({
@@ -128,10 +159,15 @@ export class PresenceService {
 
   /**
    * Mark user as offline
+   * Updates both Redis and database
    */
   async setOffline(userId: string, deviceId = DEFAULT_DEVICE_ID): Promise<void> {
     this.logger.debug(`Setting user ${userId} offline`);
 
+    // Update Redis first
+    await this.redisService.setUserOffline(userId);
+
+    // Persist to database
     await this.prisma.userPresence.upsert({
       where: { userId_deviceId: { userId, deviceId } },
       update: {
@@ -149,8 +185,18 @@ export class PresenceService {
   /**
    * Cleanup stale presences (mark inactive users as offline)
    * This should be called periodically by a cron job
+   * Cleans up both Redis and database
    */
   async cleanupStalePresences(): Promise<number> {
+    // Clean up stale Redis entries
+    const redisCleanedCount = await this.redisService.cleanupStalePresence(
+      this.OFFLINE_THRESHOLD_MS
+    );
+    if (redisCleanedCount > 0) {
+      this.logger.log(`Cleaned up ${redisCleanedCount} stale Redis presence entries`);
+    }
+
+    // Clean up database
     const thresholdTime = new Date(Date.now() - this.OFFLINE_THRESHOLD_MS);
 
     const result = await this.prisma.userPresence.updateMany({
@@ -164,7 +210,7 @@ export class PresenceService {
     });
 
     if (result.count > 0) {
-      this.logger.log(`Marked ${result.count} stale users as offline`);
+      this.logger.log(`Marked ${result.count} stale users as offline in database`);
     }
 
     return result.count;

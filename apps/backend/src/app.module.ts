@@ -2,9 +2,10 @@ import { Module } from '@nestjs/common';
 import { APP_FILTER, APP_GUARD, APP_INTERCEPTOR } from '@nestjs/core';
 
 // Infrastructure
-import { ConfigModule } from './config';
+import { ConfigModule, AppConfigService } from './config';
 import { DatabaseModule } from './database';
 import { AwsModule } from './aws';
+import { RedisModule } from './redis';
 
 // Feature modules
 import { AuthModule } from './modules/auth';
@@ -33,6 +34,14 @@ import { HttpExceptionFilter } from './common/filters';
     ConfigModule,
     DatabaseModule,
     AwsModule,
+
+    // Redis for pub/sub and caching
+    RedisModule.forRootAsync({
+      useFactory: (configService: AppConfigService) => ({
+        url: configService.redisUrl || 'redis://localhost:6379',
+      }),
+      inject: [AppConfigService],
+    }),
 
     // Feature modules
     AuthModule,

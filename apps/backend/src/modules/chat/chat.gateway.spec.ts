@@ -1,7 +1,9 @@
 import { WsException } from '@nestjs/websockets';
+import type Redis from 'ioredis';
 import { ChatGateway } from './chat.gateway';
 import type { ChatService } from './chat.service';
 import type { AuthService } from '../auth';
+import type { RedisService } from '../../redis';
 import type { Server, Socket } from 'socket.io';
 
 describe('ChatGateway', () => {
@@ -13,6 +15,19 @@ describe('ChatGateway', () => {
     >
   >;
   let mockAuthService: jest.Mocked<Pick<AuthService, 'verifyAccessToken'>>;
+  let mockRedisService: jest.Mocked<
+    Pick<
+      RedisService,
+      | 'setUserOnline'
+      | 'setUserOffline'
+      | 'heartbeat'
+      | 'addUserToRoom'
+      | 'removeUserFromRoom'
+      | 'getOnlineUsersInRoom'
+    >
+  >;
+  let mockPubClient: jest.Mocked<Partial<Redis>>;
+  let mockSubClient: jest.Mocked<Partial<Redis>>;
   let mockServer: Partial<Server>;
   let mockSocket: Partial<Socket>;
 
@@ -42,9 +57,27 @@ describe('ChatGateway', () => {
       verifyAccessToken: jest.fn(),
     };
 
+    mockRedisService = {
+      setUserOnline: jest.fn().mockResolvedValue(undefined),
+      setUserOffline: jest.fn().mockResolvedValue(undefined),
+      heartbeat: jest.fn().mockResolvedValue(undefined),
+      addUserToRoom: jest.fn().mockResolvedValue(undefined),
+      removeUserFromRoom: jest.fn().mockResolvedValue(undefined),
+      getOnlineUsersInRoom: jest.fn().mockResolvedValue([]),
+    };
+
+    mockPubClient = {
+      status: 'ready',
+    };
+
+    mockSubClient = {
+      status: 'ready',
+    };
+
     mockServer = {
       to: jest.fn().mockReturnThis(),
       emit: jest.fn(),
+      adapter: jest.fn(),
       sockets: {
         adapter: {
           rooms: new Map(),
@@ -68,7 +101,10 @@ describe('ChatGateway', () => {
 
     gateway = new ChatGateway(
       mockChatService as unknown as ChatService,
-      mockAuthService as unknown as AuthService
+      mockAuthService as unknown as AuthService,
+      mockRedisService as unknown as RedisService,
+      mockPubClient as Redis,
+      mockSubClient as Redis
     );
     gateway.server = mockServer as Server;
   });
@@ -175,12 +211,13 @@ describe('ChatGateway', () => {
         memberCount: 5,
         isMember: true,
       });
-      mockChatService.getOnlineUsersInRoom.mockResolvedValue(['user-1', 'user-2']);
+      mockRedisService.getOnlineUsersInRoom.mockResolvedValue(['user-1', 'user-2']);
 
       const result = await gateway.handleJoinRoom(mockSocket as Socket, { roomId: 'room-1' });
 
       expect(mockSocket.join).toHaveBeenCalledWith('room-1');
       expect(mockSocket.to).toHaveBeenCalledWith('room-1');
+      expect(mockRedisService.addUserToRoom).toHaveBeenCalledWith(mockUser.sub, 'room-1');
       expect(result).toEqual({
         roomId: 'room-1',
         roomName: 'Test Room',
@@ -208,6 +245,7 @@ describe('ChatGateway', () => {
 
       expect(mockSocket.leave).toHaveBeenCalledWith('room-1');
       expect(mockSocket.to).toHaveBeenCalledWith('room-1');
+      expect(mockRedisService.removeUserFromRoom).toHaveBeenCalledWith(mockUser.sub, 'room-1');
       expect(result).toEqual({ roomId: 'room-1', success: true });
     });
   });
@@ -267,13 +305,14 @@ describe('ChatGateway', () => {
   });
 
   describe('handleHeartbeat', () => {
-    it('should update heartbeat timestamp', () => {
+    it('should update heartbeat timestamp', async () => {
       mockSocket.data = { user: mockUser, lastHeartbeat: 0 };
 
-      const result = gateway.handleHeartbeat(mockSocket as Socket);
+      const result = await gateway.handleHeartbeat(mockSocket as Socket);
 
       expect(result.timestamp).toBeGreaterThan(0);
       expect(mockSocket.data.lastHeartbeat).toBeGreaterThan(0);
+      expect(mockRedisService.heartbeat).toHaveBeenCalledWith(mockUser.sub);
     });
   });
 

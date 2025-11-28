@@ -8,12 +8,16 @@ import {
 } from '@nestjs/websockets';
 import type { OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit } from '@nestjs/websockets';
 import type { Server, Socket } from 'socket.io';
-import { Logger, UseGuards, UsePipes } from '@nestjs/common';
+import { Inject, Logger, UseGuards, UsePipes } from '@nestjs/common';
 import { ZodValidationPipe } from 'nestjs-zod';
+import { createAdapter } from '@socket.io/redis-adapter';
+import type Redis from 'ioredis';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { ChatService } from './chat.service';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { AuthService } from '../auth';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { RedisService, REDIS_PUBLISHER, REDIS_SUBSCRIBER } from '../../redis';
 import { WsAuthGuard } from '../../common/guards/ws-auth.guard';
 import type { AccessTokenPayload } from '../auth/types/token.types';
 import {
@@ -95,14 +99,26 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   constructor(
     private readonly chatService: ChatService,
-    private readonly authService: AuthService
+    private readonly authService: AuthService,
+    private readonly redisService: RedisService,
+    @Inject(REDIS_PUBLISHER) private readonly pubClient: Redis,
+    @Inject(REDIS_SUBSCRIBER) private readonly subClient: Redis
   ) {}
 
   /**
    * Gateway initialization
+   * Sets up Redis adapter for multi-instance support
    */
-  afterInit(_server: Server): void {
-    this.logger.log('WebSocket Gateway initialized');
+  afterInit(server: Server): void {
+    // Set up Redis adapter for multi-instance Socket.io support
+    try {
+      const adapter = createAdapter(this.pubClient, this.subClient);
+      server.adapter(adapter);
+      this.logger.log('WebSocket Gateway initialized with Redis adapter');
+    } catch (error) {
+      this.logger.error('Failed to initialize Redis adapter, falling back to in-memory adapter');
+      this.logger.error(error instanceof Error ? error.message : 'Unknown error');
+    }
   }
 
   /**
@@ -142,6 +158,12 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.disconnectGrace.delete(userId);
         this.logger.debug(`Reconnection within grace period: ${userId}`);
       }
+
+      // Set user online in Redis
+      await this.redisService.setUserOnline(userId, {
+        status: 'ONLINE',
+        deviceId: payload.deviceId,
+      });
 
       this.logger.log(`Client connected: ${client.id} (User: ${payload.username})`);
 
@@ -228,8 +250,11 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       await client.join(roomId);
       client.data.rooms?.add(roomId);
 
-      // Get online users in room
-      const onlineUsers = await this.chatService.getOnlineUsersInRoom(roomId);
+      // Track user in room via Redis (for multi-instance awareness)
+      await this.redisService.addUserToRoom(user.sub, roomId);
+
+      // Get online users in room from Redis
+      const onlineUsers = await this.redisService.getOnlineUsersInRoom(roomId);
 
       // Notify room of new user (except sender)
       const presenceEvent: UserPresenceEvent = {
@@ -275,6 +300,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     // Leave Socket.io room
     await client.leave(roomId);
     client.data.rooms?.delete(roomId);
+
+    // Remove user from room in Redis
+    await this.redisService.removeUserFromRoom(user.sub, roomId);
 
     // Notify room of user leaving
     const presenceEvent: UserPresenceEvent = {
@@ -363,8 +391,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
    */
   @UseGuards(WsAuthGuard)
   @SubscribeMessage('heartbeat')
-  handleHeartbeat(@ConnectedSocket() client: AuthenticatedSocket): { timestamp: number } {
+  async handleHeartbeat(
+    @ConnectedSocket() client: AuthenticatedSocket
+  ): Promise<{ timestamp: number }> {
+    const user = client.data.user!;
     client.data.lastHeartbeat = Date.now();
+
+    // Update heartbeat in Redis for presence tracking
+    await this.redisService.heartbeat(user.sub);
+
     return { timestamp: Date.now() };
   }
 
@@ -452,21 +487,35 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
    * Handle user going offline after grace period
    */
   private handleUserOffline(userId: string, rooms?: Set<string>): void {
-    if (!rooms) return;
+    // Update presence status in Redis
+    this.redisService.setUserOffline(userId).catch((error) => {
+      this.logger.error(
+        `Failed to set user offline in Redis: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    });
 
-    // Notify all rooms this user was in
-    for (const roomId of rooms) {
-      this.server.to(roomId).emit('user:left', {
-        userId,
-        roomId,
-        action: 'left',
-      });
+    // Remove user from all rooms in Redis
+    if (rooms) {
+      for (const roomId of rooms) {
+        this.redisService.removeUserFromRoom(userId, roomId).catch((error) => {
+          this.logger.error(
+            `Failed to remove user from room in Redis: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        });
+
+        // Notify all rooms this user was in
+        this.server.to(roomId).emit('user:left', {
+          userId,
+          roomId,
+          action: 'left',
+        });
+      }
     }
 
-    // Update presence status
+    // Also update presence in database
     this.chatService.setUserOffline(userId).catch((error) => {
       this.logger.error(
-        `Failed to set user offline: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to set user offline in DB: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     });
 

@@ -3,7 +3,7 @@
 ## Current Sprint Status
 
 **Current Phase**: MVP Foundation (Sprint 1-2)
-**Last Updated**: 2025-11-28
+**Last Updated**: 2025-11-29
 
 ---
 
@@ -13,7 +13,7 @@
 |------|-------|--------|----------|
 | SOCIO-10 | Project Setup & Infrastructure | **Complete** | 8/8 (100%) |
 | SOCIO-20 | Authentication System | In Progress | 7/8 (87%) |
-| SOCIO-30 | Real-Time Messaging Core | In Progress | 1/7 (14%) |
+| SOCIO-30 | Real-Time Messaging Core | In Progress | 2/7 (28%) |
 | SOCIO-40 | Room Discovery & Geolocation | Partial | 2/7 (28%) |
 | SOCIO-50 | Chat Interface | Not Started | 0/6 (0%) |
 
@@ -195,7 +195,7 @@ Implement real-time messaging infrastructure with Socket.io, Redis pub/sub, and 
 | Ticket | Title | Points | Priority | Dependencies | Status |
 |--------|-------|--------|----------|--------------|--------|
 | SOCIO-301 | Socket.io gateway setup | 5 | Critical | SOCIO-201, SOCIO-104 | ✅ Done |
-| SOCIO-302 | Redis pub/sub integration | 5 | Critical | SOCIO-301 | Pending |
+| SOCIO-302 | Redis pub/sub integration | 5 | Critical | SOCIO-301 | ✅ Done |
 | SOCIO-303 | Message service with persistence | 5 | High | SOCIO-301 | Pending |
 | SOCIO-304 | Presence tracking service | 5 | High | SOCIO-301, SOCIO-302 | Pending |
 | SOCIO-305 | Typing indicators | 3 | Medium | SOCIO-301 | Pending |
@@ -251,6 +251,39 @@ export class ChatGateway {
 - 'user:left' - User left room
 - 'error' - Error with code and message
 ```
+
+### SOCIO-302: Redis Pub/Sub Integration (Critical)
+
+**Points**: 5 | **Priority**: Critical
+
+#### Description
+Implement Redis pub/sub integration for multi-instance Socket.io support, presence caching, and rate limiting infrastructure.
+
+#### Acceptance Criteria
+- [x] Redis adapter for multi-instance Socket.io
+- [x] Presence caching with TTL
+- [x] Room membership tracking in Redis
+- [x] Rate limiting infrastructure
+- [x] Graceful degradation to database
+- [x] Unit tests for Redis service (30 tests)
+- [x] Integration with ChatGateway
+- [x] Integration with PresenceService
+
+#### Sub-tasks
+| Sub-task | Description | Points |
+|----------|-------------|--------|
+| SOCIO-302-1 | Create Redis module and service | 2 |
+| SOCIO-302-2 | Add @socket.io/redis-adapter | 2 |
+| SOCIO-302-3 | Update ChatGateway for Redis | 2 |
+| SOCIO-302-4 | Update PresenceService for Redis | 2 |
+| SOCIO-302-5 | Write unit tests | 2 |
+
+#### Technical Notes
+- Uses `ioredis` for Redis client
+- Uses `@socket.io/redis-adapter` for Socket.io clustering
+- Redis keys prefixed by type (presence, session, room, user)
+- Pub/sub channels for real-time updates across instances
+- 5-minute TTL for presence data
 
 ---
 
