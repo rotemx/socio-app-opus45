@@ -17,7 +17,7 @@ import { PresenceModule } from './modules/presence';
 import { ChatModule } from './modules/chat/chat.module';
 
 // Guards
-import { JwtAuthGuard } from './common/guards';
+import { JwtAuthGuard, RateLimitGuard } from './common/guards';
 
 // Interceptors
 import {
@@ -65,6 +65,11 @@ import { HttpExceptionFilter } from './common/filters';
     ChatModule,
   ],
   providers: [
+    // Global rate limit guard (must be before other guards)
+    {
+      provide: APP_GUARD,
+      useClass: RateLimitGuard,
+    },
     // Global JWT auth guard
     {
       provide: APP_GUARD,

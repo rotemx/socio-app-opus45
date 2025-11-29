@@ -1,99 +1,27 @@
 import type { AuthTokens } from '@socio/types';
+import * as Keychain from 'react-native-keychain';
 
 /**
  * Secure storage service for sensitive data like auth tokens
- *
- * NOTE: For production, this should use react-native-keychain for secure storage.
- * Currently uses a simple in-memory fallback for development.
- *
- * To enable secure storage:
- * 1. Install: pnpm add react-native-keychain
- * 2. For iOS: cd ios && pod install
- * 3. Uncomment the Keychain implementation below
+ * Uses react-native-keychain for secure storage on iOS (Keychain) and Android (Keystore).
  */
 
 // Storage keys
 const STORAGE_KEYS = {
-  ACCESS_TOKEN: 'socio_access_token',
-  REFRESH_TOKEN: 'socio_refresh_token',
   TOKENS: 'socio_auth_tokens',
 } as const;
-
-// In-memory fallback storage (NOT secure, for development only)
-const memoryStorage: Map<string, string> = new Map();
-
-/**
- * Secure storage interface
- */
-export interface SecureStorage {
-  setItem: (key: string, value: string) => Promise<void>;
-  getItem: (key: string) => Promise<string | null>;
-  removeItem: (key: string) => Promise<void>;
-  clear: () => Promise<void>;
-}
-
-/**
- * In-memory storage implementation (development fallback)
- * WARNING: Not secure, data is lost on app restart
- */
-const memoryStorageImpl: SecureStorage = {
-  async setItem(key: string, value: string) {
-    memoryStorage.set(key, value);
-  },
-  async getItem(key: string) {
-    return memoryStorage.get(key) ?? null;
-  },
-  async removeItem(key: string) {
-    memoryStorage.delete(key);
-  },
-  async clear() {
-    memoryStorage.clear();
-  },
-};
-
-// TODO: Implement Keychain storage when react-native-keychain is installed
-// import * as Keychain from 'react-native-keychain';
-//
-// const keychainStorageImpl: SecureStorage = {
-//   async setItem(key: string, value: string) {
-//     await Keychain.setGenericPassword(key, value, { service: key });
-//   },
-//   async getItem(key: string) {
-//     const credentials = await Keychain.getGenericPassword({ service: key });
-//     return credentials ? credentials.password : null;
-//   },
-//   async removeItem(key: string) {
-//     await Keychain.resetGenericPassword({ service: key });
-//   },
-//   async clear() {
-//     // Clear all known keys
-//     await Promise.all(
-//       Object.values(STORAGE_KEYS).map((key) =>
-//         Keychain.resetGenericPassword({ service: key })
-//       )
-//     );
-//   },
-// };
-
-// Use memory storage for now (replace with keychainStorageImpl in production)
-const storage: SecureStorage = memoryStorageImpl;
-
-// Warn if using insecure storage in production
-if (typeof __DEV__ !== 'undefined' && !__DEV__) {
-  console.warn(
-    'WARNING: Using insecure in-memory storage. ' +
-      'Please install and configure react-native-keychain for secure storage.'
-  );
-}
 
 /**
  * Save auth tokens securely
  */
 export async function saveTokens(tokens: AuthTokens): Promise<void> {
   try {
-    await storage.setItem(STORAGE_KEYS.TOKENS, JSON.stringify(tokens));
+    await Keychain.setGenericPassword('tokens', JSON.stringify(tokens), {
+      service: STORAGE_KEYS.TOKENS,
+      accessible: Keychain.ACCESSIBLE.WHEN_UNLOCKED,
+    });
   } catch (error) {
-    console.error('Failed to save tokens:', error);
+    console.error('Failed to save tokens securely:', error);
     throw error;
   }
 }
@@ -103,10 +31,15 @@ export async function saveTokens(tokens: AuthTokens): Promise<void> {
  */
 export async function getTokens(): Promise<AuthTokens | null> {
   try {
-    const tokensJson = await storage.getItem(STORAGE_KEYS.TOKENS);
-    if (!tokensJson) {return null;}
+    const credentials = await Keychain.getGenericPassword({
+      service: STORAGE_KEYS.TOKENS,
+    });
 
-    const parsed: unknown = JSON.parse(tokensJson);
+    if (!credentials || !credentials.password) {
+      return null;
+    }
+
+    const parsed: unknown = JSON.parse(credentials.password);
 
     // Validate parsed data has required AuthTokens properties
     if (
@@ -117,13 +50,13 @@ export async function getTokens(): Promise<AuthTokens | null> {
       typeof (parsed as Record<string, unknown>).accessToken !== 'string' ||
       typeof (parsed as Record<string, unknown>).refreshToken !== 'string'
     ) {
-      console.error('Invalid token data structure');
+      console.error('Invalid token data structure from secure storage');
       return null;
     }
 
     return parsed as AuthTokens;
   } catch (error) {
-    console.error('Failed to get tokens:', error);
+    console.error('Failed to get tokens from secure storage:', error);
     return null;
   }
 }
@@ -133,9 +66,9 @@ export async function getTokens(): Promise<AuthTokens | null> {
  */
 export async function removeTokens(): Promise<void> {
   try {
-    await storage.removeItem(STORAGE_KEYS.TOKENS);
+    await Keychain.resetGenericPassword({ service: STORAGE_KEYS.TOKENS });
   } catch (error) {
-    console.error('Failed to remove tokens:', error);
+    console.error('Failed to remove tokens from secure storage:', error);
     throw error;
   }
 }
@@ -145,7 +78,7 @@ export async function removeTokens(): Promise<void> {
  */
 export async function clearSecureStorage(): Promise<void> {
   try {
-    await storage.clear();
+    await Keychain.resetGenericPassword({ service: STORAGE_KEYS.TOKENS });
   } catch (error) {
     console.error('Failed to clear secure storage:', error);
     throw error;
