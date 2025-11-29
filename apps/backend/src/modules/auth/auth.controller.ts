@@ -5,12 +5,12 @@ import {
   Headers,
   HttpCode,
   HttpStatus,
-  NotImplementedException,
   Post,
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
 import { type AuthService } from './auth.service';
+import { type TwilioService } from './twilio.service';
 import {
   type LoginDto,
   type RegisterDto,
@@ -34,7 +34,10 @@ import type { AccessTokenPayload } from './types/token.types';
  */
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly twilioService: TwilioService
+  ) {}
 
   /**
    * Register a new user
@@ -126,31 +129,75 @@ export class AuthController {
   }
 
   /**
-   * Request phone verification code
-   * POST /auth/phone/request
+   * Request phone verification code (send OTP)
+   * POST /auth/phone/send-otp
+   *
+   * Rate limited to 3 requests per phone number per 10 minutes
+   * (enforced in TwilioService, not here, since we need per-phone limiting)
    */
   @Public()
   @UseGuards(RateLimitGuard)
-  @RateLimit({ limit: 3, windowSeconds: 60, keyPrefix: 'auth:phone:request' })
-  @Post('phone/request')
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:send' })
+  @Post('phone/send-otp')
   @HttpCode(HttpStatus.OK)
-  async requestPhoneVerification(@Body() _dto: PhoneVerifyRequestDto) {
-    // TODO: Implement Twilio phone verification (SOCIO-205)
-    throw new NotImplementedException('Phone verification not yet implemented');
+  async sendPhoneOtp(@Body() dto: PhoneVerifyRequestDto) {
+    const result = await this.twilioService.sendOtp(dto.phone, dto.countryCode);
+    return {
+      message: 'Verification code sent',
+      phone: result.phone,
+    };
   }
 
   /**
-   * Confirm phone verification code
-   * POST /auth/phone/confirm
+   * Verify phone OTP code
+   * POST /auth/phone/verify-otp
+   *
+   * On successful verification, can optionally link phone to authenticated user
    */
   @Public()
   @UseGuards(RateLimitGuard)
-  @RateLimit({ limit: 5, windowSeconds: 60, keyPrefix: 'auth:phone:confirm' })
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:verify' })
+  @Post('phone/verify-otp')
+  @HttpCode(HttpStatus.OK)
+  async verifyPhoneOtp(@Body() dto: PhoneVerifyConfirmDto) {
+    // Verify the OTP
+    const result = await this.twilioService.verifyOtp(dto.phone, dto.code, dto.countryCode);
+
+    // Return success - the caller can use this to proceed with phone-based auth
+    // or link the verified phone to their account
+    return {
+      message: 'Phone verified successfully',
+      phone: result.phone,
+      verified: result.valid,
+    };
+  }
+
+  /**
+   * Legacy endpoint - redirects to send-otp
+   * POST /auth/phone/request
+   * @deprecated Use POST /auth/phone/send-otp instead
+   */
+  @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:send' })
+  @Post('phone/request')
+  @HttpCode(HttpStatus.OK)
+  async requestPhoneVerification(@Body() dto: PhoneVerifyRequestDto) {
+    return this.sendPhoneOtp(dto);
+  }
+
+  /**
+   * Legacy endpoint - redirects to verify-otp
+   * POST /auth/phone/confirm
+   * @deprecated Use POST /auth/phone/verify-otp instead
+   */
+  @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:verify' })
   @Post('phone/confirm')
   @HttpCode(HttpStatus.OK)
-  async confirmPhoneVerification(@Body() _dto: PhoneVerifyConfirmDto) {
-    // TODO: Implement phone verification confirmation (SOCIO-205)
-    throw new NotImplementedException('Phone verification confirmation not yet implemented');
+  async confirmPhoneVerification(@Body() dto: PhoneVerifyConfirmDto) {
+    return this.verifyPhoneOtp(dto);
   }
 
   /**

@@ -16,14 +16,34 @@ const registerSchema = z.object({
 });
 
 // Phone verification request
+// Supports both E.164 format (+1234567890) and local format with country code
 const phoneVerifyRequestSchema = z.object({
-  phone: z.string().regex(/^\+[1-9]\d{1,14}$/, 'Invalid phone number format'),
+  phone: z
+    .string()
+    .min(7, 'Phone number is too short')
+    .max(20, 'Phone number is too long'),
+  countryCode: z
+    .string()
+    .length(2, 'Country code must be 2 characters (e.g., US, IL)')
+    .toUpperCase()
+    .optional(),
 });
 
 // Phone verification confirm
 const phoneVerifyConfirmSchema = z.object({
-  phone: z.string().regex(/^\+[1-9]\d{1,14}$/),
-  code: z.string().length(6),
+  phone: z
+    .string()
+    .min(7, 'Phone number is too short')
+    .max(20, 'Phone number is too long'),
+  code: z
+    .string()
+    .length(6, 'Verification code must be 6 digits')
+    .regex(/^\d{6}$/, 'Verification code must contain only digits'),
+  countryCode: z
+    .string()
+    .length(2, 'Country code must be 2 characters (e.g., US, IL)')
+    .toUpperCase()
+    .optional(),
 });
 
 // Refresh token
