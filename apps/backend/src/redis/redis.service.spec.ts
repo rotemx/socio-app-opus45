@@ -285,15 +285,17 @@ describe('RedisService', () => {
 
   describe('rate limiting', () => {
     it('should allow request under limit', async () => {
-      // Mock pipeline returns count of 0 (under limit)
+      // Mock single atomic pipeline: zremrangebyscore, zadd, zcard, expire
       mockRedis.pipeline.mockReturnValue({
         zremrangebyscore: jest.fn().mockReturnThis(),
-        zcard: jest.fn().mockReturnThis(),
         zadd: jest.fn().mockReturnThis(),
+        zcard: jest.fn().mockReturnThis(),
         expire: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
           [null, 0], // zremrangebyscore result
-          [null, 0], // current count (0 = under limit)
+          [null, 1], // zadd result
+          [null, 1], // zcard result (count = 1, under limit of 10)
+          [null, 1], // expire result
         ]),
       });
 
@@ -304,15 +306,17 @@ describe('RedisService', () => {
     });
 
     it('should deny request over limit', async () => {
-      // Mock pipeline returns count at limit
+      // Mock pipeline returns count exceeding limit
       mockRedis.pipeline.mockReturnValue({
         zremrangebyscore: jest.fn().mockReturnThis(),
-        zcard: jest.fn().mockReturnThis(),
         zadd: jest.fn().mockReturnThis(),
+        zcard: jest.fn().mockReturnThis(),
         expire: jest.fn().mockReturnThis(),
         exec: jest.fn().mockResolvedValue([
           [null, 0], // zremrangebyscore result
-          [null, 10], // current count at limit
+          [null, 1], // zadd result
+          [null, 11], // zcard result (count = 11, over limit of 10)
+          [null, 1], // expire result
         ]),
       });
 
@@ -428,8 +432,8 @@ describe('RedisService', () => {
     it('should propagate pipeline execution errors', async () => {
       mockRedis.pipeline.mockReturnValue({
         zremrangebyscore: jest.fn().mockReturnThis(),
-        zcard: jest.fn().mockReturnThis(),
         zadd: jest.fn().mockReturnThis(),
+        zcard: jest.fn().mockReturnThis(),
         expire: jest.fn().mockReturnThis(),
         exec: jest.fn().mockRejectedValue(new Error('Pipeline failed')),
       });

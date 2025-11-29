@@ -38,8 +38,18 @@ import { HttpExceptionFilter } from './common/filters';
 
     // Redis for pub/sub and caching
     RedisModule.forRootAsync({
-      useFactory: (configService: AppConfigService) => ({n        url: configService.redisUrl || 'redis://localhost:6379',
-      }),
+      useFactory: (configService: AppConfigService) => {
+        const redisUrl = configService.redisUrl;
+
+        // In production, require explicit Redis URL configuration
+        if (configService.isProduction && !redisUrl) {
+          throw new Error('REDIS_URL must be configured in production environment');
+        }
+
+        return {
+          url: redisUrl || 'redis://localhost:6379',
+        };
+      },
       inject: [AppConfigService],
     }),
 

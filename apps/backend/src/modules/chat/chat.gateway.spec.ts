@@ -24,6 +24,7 @@ describe('ChatGateway', () => {
       | 'addUserToRoom'
       | 'removeUserFromRoom'
       | 'getOnlineUsersInRoom'
+      | 'subscribe'
     >
   >;
   let mockPubClient: jest.Mocked<Partial<Redis>>;
@@ -64,6 +65,7 @@ describe('ChatGateway', () => {
       addUserToRoom: jest.fn().mockResolvedValue(undefined),
       removeUserFromRoom: jest.fn().mockResolvedValue(undefined),
       getOnlineUsersInRoom: jest.fn().mockResolvedValue([]),
+      subscribe: jest.fn().mockResolvedValue(undefined),
     };
 
     mockPubClient = {

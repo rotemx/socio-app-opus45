@@ -122,7 +122,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     // Subscribe to user status updates for distributed grace period handling
     // If a user connects on another instance, we should cancel their disconnect timer here
-    await this.redisService.subscribe(REDIS_CHANNELS.USER_STATUS, (channel, message) => {
+    await this.redisService.subscribe(REDIS_CHANNELS.USER_STATUS, (_channel, message) => {
       try {
         const data = JSON.parse(message) as { userId: string; status: string };
         if (data.status !== 'OFFLINE') {

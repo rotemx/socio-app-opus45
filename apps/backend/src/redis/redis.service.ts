@@ -499,8 +499,8 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   // ============================================
 
   /**
-   * Check rate limit using sliding window
-   * Checks count BEFORE adding to avoid allowing limit+1 requests
+   * Check rate limit using sliding window (atomic operation)
+   * Uses single pipeline for atomicity - adds entry then checks count
    */
   async checkRateLimit(
     key: string,
@@ -511,36 +511,37 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const windowStart = now - windowSeconds * 1000;
     const rateLimitKey = `${REDIS_KEYS.RATE_LIMIT}:${key}`;
 
-    // First, clean up old entries and get current count
-    const checkPipeline = this.client.pipeline();
-    checkPipeline.zremrangebyscore(rateLimitKey, '-inf', windowStart);
-    checkPipeline.zcard(rateLimitKey);
+    // Single atomic pipeline: clean, add, count, expire
+    const pipeline = this.client.pipeline();
+    pipeline.zremrangebyscore(rateLimitKey, '-inf', windowStart);
+    pipeline.zadd(rateLimitKey, now, `${now}-${Math.random()}`);
+    pipeline.zcard(rateLimitKey);
+    pipeline.expire(rateLimitKey, windowSeconds);
 
-    const checkResults = await checkPipeline.exec();
-    if (!checkResults) {
+    const results = await pipeline.exec();
+    if (!results) {
+      // Fail-open on Redis error
+      this.logger.error('Redis pipeline returned null in checkRateLimit');
       return { allowed: true, remaining: limit, resetAt: now + windowSeconds * 1000 };
     }
 
-    const currentCount = checkResults[1]?.[1] as number;
-
-    // Check if adding one more would exceed limit
-    if (currentCount >= limit) {
-      return {
-        allowed: false,
-        remaining: 0,
-        resetAt: now + windowSeconds * 1000,
-      };
+    // Check for errors in pipeline results
+    const hasError = results.some(([err]) => err !== null);
+    if (hasError) {
+      this.logger.error('Redis pipeline error in checkRateLimit:', results);
+      return { allowed: true, remaining: limit, resetAt: now + windowSeconds * 1000 };
     }
 
-    // Only add the request if under limit
-    const addPipeline = this.client.pipeline();
-    addPipeline.zadd(rateLimitKey, now, `${now}-${Math.random()}`);
-    addPipeline.expire(rateLimitKey, windowSeconds);
-    await addPipeline.exec();
+    // Get count from zcard result (index 2)
+    const zcardResult = results[2];
+    const count = typeof zcardResult?.[1] === 'number' ? zcardResult[1] : 0;
+
+    // If count exceeds limit, deny (the entry was added but request is rejected)
+    const allowed = count <= limit;
 
     return {
-      allowed: true,
-      remaining: Math.max(0, limit - currentCount - 1),
+      allowed,
+      remaining: Math.max(0, limit - count),
       resetAt: now + windowSeconds * 1000,
     };
   }
@@ -570,14 +571,19 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     let deletedCount = 0;
     let cursor = '0';
 
-    do {
-      const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
-      cursor = nextCursor;
+    try {
+      do {
+        const [nextCursor, keys] = await this.client.scan(cursor, 'MATCH', pattern, 'COUNT', 100);
+        cursor = nextCursor;
 
-      if (keys.length > 0) {
-        deletedCount += await this.client.del(...keys);
-      }
-    } while (cursor !== '0');
+        if (keys.length > 0) {
+          deletedCount += await this.client.del(...keys);
+        }
+      } while (cursor !== '0');
+    } catch (error: unknown) {
+      this.logger.error(`Error invalidating cache with pattern ${pattern}:`, error);
+      throw error;
+    }
 
     return deletedCount;
   }

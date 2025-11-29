@@ -72,11 +72,18 @@ export class MessagesService {
    * Get messages from a room with pagination
    */
   async getMessages(dto: GetMessagesDto) {
+    // Build createdAt filter - handle both before and after properly
+    let createdAtFilter: { lt?: Date; gt?: Date } | undefined;
+    if (dto.before || dto.after) {
+      createdAtFilter = {};
+      if (dto.before) createdAtFilter.lt = dto.before;
+      if (dto.after) createdAtFilter.gt = dto.after;
+    }
+
     const where = {
       roomId: dto.roomId,
       isDeleted: false,
-      ...(dto.before && { createdAt: { lt: dto.before } }),
-      ...(dto.after && { createdAt: { gt: dto.after } }),
+      ...(createdAtFilter && { createdAt: createdAtFilter }),
     };
 
     const messages = await this.prisma.message.findMany({
