@@ -105,23 +105,29 @@ export class PresenceService {
 
   /**
    * Get presence for multiple users
+   * Uses PostgreSQL DISTINCT ON for efficient single-query deduplication
    */
   async getMultiplePresence(userIds: string[]): Promise<PresenceResponse[]> {
-    // Get most recent presence for each user using a subquery approach
-    const presences = await this.prisma.userPresence.findMany({
-      where: { userId: { in: userIds } },
-      orderBy: { lastSeenAt: 'desc' },
-    });
-
-    // Deduplicate by userId (keeping most recent)
-    const uniquePresences = new Map<string, (typeof presences)[0]>();
-    for (const p of presences) {
-      if (!uniquePresences.has(p.userId)) {
-        uniquePresences.set(p.userId, p);
-      }
+    if (userIds.length === 0) {
+      return [];
     }
 
-    return Array.from(uniquePresences.values()).map((p) => this.mapToResponse(p));
+    // Use PostgreSQL DISTINCT ON to get the most recent presence for each user
+    // This is more efficient than fetching all records and deduplicating in memory
+    const presences = await this.prisma.$queryRaw<
+      Array<{
+        userId: string;
+        status: 'ONLINE' | 'AWAY' | 'BUSY' | 'OFFLINE';
+        lastSeenAt: Date;
+      }>
+    >`
+      SELECT DISTINCT ON ("userId") "userId", "status", "lastSeenAt"
+      FROM "UserPresence"
+      WHERE "userId" = ANY(${userIds}::uuid[])
+      ORDER BY "userId", "lastSeenAt" DESC
+    `;
+
+    return presences.map((p) => this.mapToResponse(p));
   }
 
   /**

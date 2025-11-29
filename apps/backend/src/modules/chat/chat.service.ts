@@ -215,14 +215,22 @@ export class ChatService {
     messages: Array<SavedMessage & { sender: { username: string; avatarUrl: string | null } }>;
     cursor: string | null;
   }> {
+    // Build the where clause - fetch cursor timestamp separately to avoid N+1
+    let cursorDate: Date | undefined;
+    if (before) {
+      const cursorMessage = await this.prisma.message.findUnique({
+        where: { id: before },
+        select: { createdAt: true },
+      });
+      cursorDate = cursorMessage?.createdAt;
+    }
+
     const messages = await this.prisma.message.findMany({
       where: {
         roomId,
         isDeleted: false,
-        ...(before && {
-          createdAt: {
-            lt: (await this.prisma.message.findUnique({ where: { id: before } }))?.createdAt,
-          },
+        ...(cursorDate && {
+          createdAt: { lt: cursorDate },
         }),
       },
       take: limit,

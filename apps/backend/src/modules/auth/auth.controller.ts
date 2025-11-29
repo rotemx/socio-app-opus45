@@ -23,7 +23,8 @@ import {
   type AppleIdTokenDto,
   type AppleCodeDto,
 } from './dto/auth.dto';
-import { Public } from '../../common/decorators';
+import { Public, RateLimit } from '../../common/decorators';
+import { RateLimitGuard } from '../../common/guards';
 import { CurrentUser } from './decorators/current-user.decorator';
 import type { AccessTokenPayload } from './types/token.types';
 
@@ -40,6 +41,8 @@ export class AuthController {
    * POST /auth/register
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 3, windowSeconds: 60, keyPrefix: 'auth:register' })
   @Post('register')
   async register(@Body() dto: RegisterDto, @Headers('x-device-id') deviceId?: string) {
     return this.authService.register(dto, deviceId);
@@ -50,6 +53,8 @@ export class AuthController {
    * POST /auth/login
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 5, windowSeconds: 60, keyPrefix: 'auth:login' })
   @Post('login')
   @HttpCode(HttpStatus.OK)
   async login(@Body() dto: LoginDto, @Headers('x-device-id') deviceId?: string) {
@@ -61,6 +66,8 @@ export class AuthController {
    * POST /auth/refresh
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 20, windowSeconds: 60, keyPrefix: 'auth:refresh' })
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   async refreshTokens(@Body() dto: RefreshTokenDto, @Headers('x-device-id') deviceId?: string) {
@@ -97,6 +104,8 @@ export class AuthController {
    * POST /auth/guest
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:guest' })
   @Post('guest')
   async createGuest(@Headers('x-device-id') deviceId?: string) {
     return this.authService.createGuestUser(deviceId);
@@ -121,6 +130,8 @@ export class AuthController {
    * POST /auth/phone/request
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 3, windowSeconds: 60, keyPrefix: 'auth:phone:request' })
   @Post('phone/request')
   @HttpCode(HttpStatus.OK)
   async requestPhoneVerification(@Body() _dto: PhoneVerifyRequestDto) {
@@ -133,6 +144,8 @@ export class AuthController {
    * POST /auth/phone/confirm
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 5, windowSeconds: 60, keyPrefix: 'auth:phone:confirm' })
   @Post('phone/confirm')
   @HttpCode(HttpStatus.OK)
   async confirmPhoneVerification(@Body() _dto: PhoneVerifyConfirmDto) {
@@ -145,6 +158,8 @@ export class AuthController {
    * POST /auth/oauth/callback
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:oauth' })
   @Post('oauth/callback')
   @HttpCode(HttpStatus.OK)
   async oauthCallback(@Body() dto: OAuthCallbackDto, @Headers('x-device-id') deviceId?: string) {
@@ -170,6 +185,8 @@ export class AuthController {
    * For mobile apps using Google Sign-In SDK that provides an ID token
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:google:token' })
   @Post('google/token')
   @HttpCode(HttpStatus.OK)
   async googleIdTokenLogin(
@@ -186,6 +203,8 @@ export class AuthController {
    * For web apps using OAuth redirect flow
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:google:code' })
   @Post('google/code')
   @HttpCode(HttpStatus.OK)
   async googleCodeLogin(@Body() dto: GoogleCodeDto, @Headers('x-device-id') deviceId?: string) {
@@ -200,6 +219,8 @@ export class AuthController {
    * Note: user info (name, email) is only provided on FIRST sign-in
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:apple:token' })
   @Post('apple/token')
   @HttpCode(HttpStatus.OK)
   async appleIdTokenLogin(@Body() dto: AppleIdTokenDto, @Headers('x-device-id') deviceId?: string) {
@@ -213,6 +234,8 @@ export class AuthController {
    * For web apps using OAuth redirect flow
    */
   @Public()
+  @UseGuards(RateLimitGuard)
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:apple:code' })
   @Post('apple/code')
   @HttpCode(HttpStatus.OK)
   async appleCodeLogin(@Body() dto: AppleCodeDto, @Headers('x-device-id') deviceId?: string) {
