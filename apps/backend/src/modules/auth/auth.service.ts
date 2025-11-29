@@ -19,6 +19,8 @@ import { PasswordService } from './password.service';
 import { GoogleOAuthService, type GoogleUserInfo } from './google-oauth.service';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { AppleOAuthService, type AppleUserInfo } from './apple-oauth.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { RedisService } from '../../redis';
 import type { LoginDto, RegisterDto, RefreshTokenDto } from './dto/auth.dto';
 
 /**
@@ -55,8 +57,34 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly passwordService: PasswordService,
     private readonly googleOAuthService: GoogleOAuthService,
-    private readonly appleOAuthService: AppleOAuthService
+    private readonly appleOAuthService: AppleOAuthService,
+    private readonly redisService: RedisService
   ) {}
+
+  /**
+   * Validate user existence and status with caching
+   * Used by JwtStrategy and ChatGateway to prevent DB hits on every request
+   */
+  async validateUser(userId: string): Promise<{ id: string; isActive: boolean; shadowBanned: boolean } | null> {
+    const cacheKey = `auth:validate:${userId}`;
+    const CACHE_TTL = 60; // 1 minute cache
+
+    return this.redisService.getOrSet(
+      cacheKey,
+      async () => {
+        const user = await this.prisma.user.findUnique({
+          where: { id: userId },
+          select: {
+            id: true,
+            isActive: true,
+            shadowBanned: true,
+          },
+        });
+        return user;
+      },
+      CACHE_TTL
+    );
+  }
 
   /**
    * Register a new user with email and password

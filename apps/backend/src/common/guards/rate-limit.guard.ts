@@ -7,14 +7,13 @@ import {
   Logger,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
+import { type RateLimitConfig, RATE_LIMIT_KEY } from '../decorators/rate-limit.decorator';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
-import { RedisService } from '../../../redis';
+import { RedisService } from '../../redis';
 
 @Injectable()
 export class RateLimitGuard implements CanActivate {
   private readonly logger = new Logger(RateLimitGuard.name);
-  private readonly DEFAULT_LIMIT = 100;
-  private readonly DEFAULT_WINDOW = 60; // 1 minute
 
   constructor(
     private readonly redisService: RedisService,
@@ -27,14 +26,44 @@ export class RateLimitGuard implements CanActivate {
       return true;
     }
 
+    const config = this.reflector.getAllAndOverride<RateLimitConfig>(RATE_LIMIT_KEY, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+
+    // If no rate limit configured, allow request
+    if (!config) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest();
     const ip = request.ip || request.connection.remoteAddress;
     const user = request.user;
     
-    // Use user ID if authenticated, otherwise IP
-    const key = user ? `user:${user.sub}` : `ip:${ip}`;
-    const limit = this.DEFAULT_LIMIT;
-    const window = this.DEFAULT_WINDOW;
+    // Determine key prefix
+    // If explicit prefix provided, use it. Otherwise use controller:handler name
+    let prefix = config.keyPrefix;
+    if (!prefix) {
+      const className = context.getClass().name;
+      const handlerName = context.getHandler().name;
+      prefix = `${className}:${handlerName}`;
+    }
+
+    // Build the key based on configuration
+    let key: string;
+    if (config.perUser && user && user.sub) {
+      // Rate limit per user
+      key = `${prefix}:user:${user.sub}`;
+    } else {
+      // Rate limit per IP
+      // If behind proxy, check X-Forwarded-For
+      const forwardedFor = request.headers['x-forwarded-for'];
+      const realIp = forwardedFor ? forwardedFor.split(',')[0].trim() : ip;
+      key = `${prefix}:ip:${realIp}`;
+    }
+
+    const limit = config.limit;
+    const window = config.windowSeconds;
 
     try {
       const result = await this.redisService.checkRateLimit(key, limit, window);
@@ -42,9 +71,10 @@ export class RateLimitGuard implements CanActivate {
       const response = context.switchToHttp().getResponse();
       response.header('X-RateLimit-Limit', limit.toString());
       response.header('X-RateLimit-Remaining', result.remaining.toString());
-      response.header('X-RateLimit-Reset', result.resetAt.toString());
+      response.header('X-RateLimit-Reset', Math.ceil(result.resetAt / 1000).toString());
 
       if (!result.allowed) {
+        response.header('Retry-After', Math.ceil((result.resetAt - Date.now()) / 1000).toString());
         throw new HttpException(
           {
             statusCode: HttpStatus.TOO_MANY_REQUESTS,

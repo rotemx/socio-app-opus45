@@ -6,6 +6,7 @@ import type { JwtService } from '@nestjs/jwt';
 import type { PasswordService } from './password.service';
 import type { GoogleOAuthService } from './google-oauth.service';
 import type { AppleOAuthService } from './apple-oauth.service';
+import type { RedisService } from '../../redis';
 
 describe('AuthService', () => {
   let service: AuthService;
@@ -19,6 +20,7 @@ describe('AuthService', () => {
   let mockAppleOAuthService: jest.Mocked<
     Pick<AppleOAuthService, 'verifyIdentityToken' | 'exchangeCodeForUserInfo'>
   >;
+  let mockRedisService: jest.Mocked<Pick<RedisService, 'getOrSet' | 'setJson' | 'getJson'>>;
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -65,6 +67,12 @@ describe('AuthService', () => {
       exchangeCodeForUserInfo: jest.fn(),
     };
 
+    mockRedisService = {
+      getOrSet: jest.fn(),
+      setJson: jest.fn(),
+      getJson: jest.fn(),
+    };
+
     // Create service instance directly
     service = new AuthService(
       mockPrismaService as unknown as PrismaService,
@@ -72,7 +80,8 @@ describe('AuthService', () => {
       mockJwtService as unknown as JwtService,
       mockPasswordService as unknown as PasswordService,
       mockGoogleOAuthService as unknown as GoogleOAuthService,
-      mockAppleOAuthService as unknown as AppleOAuthService
+      mockAppleOAuthService as unknown as AppleOAuthService,
+      mockRedisService as unknown as RedisService
     );
   });
 

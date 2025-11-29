@@ -1,7 +1,7 @@
 import { type ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { RateLimitGuard } from './rate-limit.guard';
-import { type RateLimitConfig, RATE_LIMIT_KEY } from '../decorators/rate-limit.decorator';
+import { type RateLimitConfig } from '../decorators/rate-limit.decorator';
 import type { RedisService } from '../../redis';
 
 describe('RateLimitGuard', () => {
@@ -43,7 +43,7 @@ describe('RateLimitGuard', () => {
       checkRateLimit: jest.fn(),
     } as unknown as jest.Mocked<RedisService>;
 
-    guard = new RateLimitGuard(reflector, redisService);
+    guard = new RateLimitGuard(redisService, reflector);
   });
 
   afterEach(() => {

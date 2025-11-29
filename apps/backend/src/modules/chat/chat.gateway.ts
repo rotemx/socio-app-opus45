@@ -165,6 +165,15 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       // Verify JWT token
       const payload = await this.authService.verifyAccessToken(token);
 
+      // Validate user status (active check)
+      const user = await this.authService.validateUser(payload.sub);
+      if (!user || !user.isActive) {
+        this.logger.warn(`Connection rejected: User inactive or not found (${payload.sub})`);
+        this.emitError(client, 'UNAUTHORIZED', 'User account is deactivated');
+        client.disconnect(true);
+        return;
+      }
+
       // Attach user data to socket
       client.data.user = payload;
       client.data.rooms = new Set();

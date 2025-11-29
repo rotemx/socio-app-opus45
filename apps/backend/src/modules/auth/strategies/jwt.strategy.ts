@@ -2,7 +2,8 @@ import { Injectable, UnauthorizedException } from '@nestjs/common';
 import { PassportStrategy } from '@nestjs/passport';
 import { ExtractJwt, Strategy } from 'passport-jwt';
 import { type AppConfigService } from '../../../config';
-import { type PrismaService } from '../../../database';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { AuthService } from '../auth.service';
 import type { AccessTokenPayload } from '../types/token.types';
 
 /**
@@ -13,7 +14,7 @@ import type { AccessTokenPayload } from '../types/token.types';
 export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
   constructor(
     config: AppConfigService,
-    private readonly prisma: PrismaService
+    private readonly authService: AuthService
   ) {
     super({
       jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
@@ -32,15 +33,8 @@ export class JwtStrategy extends PassportStrategy(Strategy, 'jwt') {
       throw new UnauthorizedException('Invalid token type');
     }
 
-    // Verify user exists and is active
-    const user = await this.prisma.user.findUnique({
-      where: { id: payload.sub },
-      select: {
-        id: true,
-        isActive: true,
-        shadowBanned: true,
-      },
-    });
+    // Verify user exists and is active (using cached validation)
+    const user = await this.authService.validateUser(payload.sub);
 
     if (!user) {
       throw new UnauthorizedException('User not found');
