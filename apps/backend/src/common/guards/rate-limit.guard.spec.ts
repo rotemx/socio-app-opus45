@@ -15,7 +15,8 @@ describe('RateLimitGuard', () => {
     headers: Record<string, string | string[]> = {}
   ): ExecutionContext => {
     const mockResponse = {
-      setHeader: jest.fn(),
+      header: jest.fn(),
+      setHeader: jest.fn(), // Keep for backwards compatibility
     };
 
     const mockRequest = {
@@ -25,6 +26,7 @@ describe('RateLimitGuard', () => {
     };
 
     return {
+      getType: () => 'http',
       switchToHttp: () => ({
         getRequest: () => mockRequest,
         getResponse: () => mockResponse,
@@ -184,9 +186,9 @@ describe('RateLimitGuard', () => {
       await guard.canActivate(context);
 
       const response = context.switchToHttp().getResponse();
-      expect(response.setHeader).toHaveBeenCalledWith('X-RateLimit-Limit', 10);
-      expect(response.setHeader).toHaveBeenCalledWith('X-RateLimit-Remaining', 5);
-      expect(response.setHeader).toHaveBeenCalledWith('X-RateLimit-Reset', Math.ceil(resetAt / 1000));
+      expect(response.header).toHaveBeenCalledWith('X-RateLimit-Limit', '10');
+      expect(response.header).toHaveBeenCalledWith('X-RateLimit-Remaining', '5');
+      expect(response.header).toHaveBeenCalledWith('X-RateLimit-Reset', Math.ceil(resetAt / 1000).toString());
     });
 
     it('should set Retry-After header when rate limit exceeded', async () => {
@@ -212,7 +214,7 @@ describe('RateLimitGuard', () => {
       }
 
       const response = context.switchToHttp().getResponse();
-      expect(response.setHeader).toHaveBeenCalledWith('Retry-After', expect.any(Number));
+      expect(response.header).toHaveBeenCalledWith('Retry-After', expect.any(String));
     });
 
     it('should fail-open when Redis errors', async () => {

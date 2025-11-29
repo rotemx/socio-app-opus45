@@ -1,7 +1,9 @@
 export { RedisModule, type RedisModuleOptions } from './redis.module';
 export {
   RedisService,
+  type PresenceStatus,
   type RedisPresenceData,
+  type RoomPresenceEntry,
   type SetUserOnlineInput,
   type RateLimitResult,
 } from './redis.service';

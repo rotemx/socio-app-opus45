@@ -1,6 +1,7 @@
 import { Injectable, Logger, NotFoundException, ForbiddenException } from '@nestjs/common';
 import { type Prisma } from '@prisma/client';
-import { type PrismaService } from '../../database';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { PrismaService } from '../../database';
 import {
   type SendMessageDto,
   type EditMessageDto,

@@ -85,3 +85,21 @@ export interface TokenRefreshResponse {
   refreshToken: string;
   expiresIn: number;
 }
+
+// Presence WebSocket DTOs
+const PRESENCE_STATUSES = ['ONLINE', 'IDLE', 'AWAY', 'BUSY'] as const;
+
+// Get room presence request
+const getRoomPresenceSchema = z.object({
+  roomId: z.string().uuid('Invalid room ID format'),
+});
+
+// Set presence status request
+const setPresenceStatusSchema = z.object({
+  status: z.enum(PRESENCE_STATUSES, {
+    errorMap: () => ({ message: 'Invalid status. Must be one of: ONLINE, IDLE, AWAY, BUSY' }),
+  }),
+});
+
+export class WsGetRoomPresenceDto extends createZodDto(getRoomPresenceSchema) {}
+export class WsSetPresenceStatusDto extends createZodDto(setPresenceStatusSchema) {}

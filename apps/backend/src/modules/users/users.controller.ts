@@ -1,5 +1,6 @@
 import { Body, Controller, Get, Param, Patch, Query } from '@nestjs/common';
-import { type UsersService } from './users.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { UsersService } from './users.service';
 import {
   type UpdateProfileDto,
   type UpdateSettingsDto,

@@ -23,6 +23,8 @@ export const REDIS_SUBSCRIBER = Symbol('REDIS_SUBSCRIBER');
 export const REDIS_KEYS = {
   /** Presence data */
   PRESENCE: 'presence',
+  /** Room-specific presence (sorted set with timestamp scores) */
+  ROOM_PRESENCE: 'room_presence',
   /** User session data */
   SESSION: 'session',
   /** Rate limiting */
@@ -33,6 +35,8 @@ export const REDIS_KEYS = {
   USER: 'user',
   /** Socket.io adapter */
   SOCKET_IO: 'socket.io',
+  /** Disconnect grace period tracking */
+  DISCONNECT_GRACE: 'disconnect_grace',
 } as const;
 
 /**
@@ -59,6 +63,8 @@ export const REDIS_TTL = {
   SESSION: 7 * 24 * 60 * 60,
   /** Rate limit window (1 minute) */
   RATE_LIMIT_WINDOW: 60,
+  /** Disconnect grace period TTL (30 seconds) */
+  DISCONNECT_GRACE: 30,
   /** Room cache TTL (5 minutes) */
   ROOM_CACHE: 5 * 60,
   /** User cache TTL (5 minutes) */

@@ -17,6 +17,8 @@ import { ChatService } from './chat.service';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { AuthService } from '../auth';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { PresenceService } from '../presence/presence.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { RedisService, REDIS_PUBLISHER, REDIS_SUBSCRIBER, REDIS_CHANNELS } from '../../redis';
 import { WsAuthGuard } from '../../common/guards/ws-auth.guard';
 import type { AccessTokenPayload } from '../auth/types/token.types';
@@ -26,6 +28,8 @@ import {
   SendMessageDto,
   TypingDto,
   WsTokenRefreshDto,
+  WsGetRoomPresenceDto,
+  WsSetPresenceStatusDto,
   type RoomJoinedResponse,
   type MessageResponse,
   type UserPresenceEvent,
@@ -100,6 +104,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   constructor(
     private readonly chatService: ChatService,
     private readonly authService: AuthService,
+    private readonly presenceService: PresenceService,
     private readonly redisService: RedisService,
     @Inject(REDIS_PUBLISHER) private readonly pubClient: Redis,
     @Inject(REDIS_SUBSCRIBER) private readonly subClient: Redis
@@ -131,6 +136,39 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       } catch (error) {
         this.logger.error('Failed to parse user status message', error);
       }
+    });
+
+    // Subscribe to presence updates and broadcast to room members
+    await this.redisService.subscribe(REDIS_CHANNELS.PRESENCE_UPDATE, (_channel, message) => {
+      try {
+        const data = JSON.parse(message) as {
+          type: string;
+          roomId: string;
+          userId: string;
+          status: string;
+          timestamp: number;
+        };
+        this.broadcastPresenceToRoom(data.roomId, {
+          userId: data.userId,
+          status: data.status,
+          timestamp: data.timestamp,
+        });
+      } catch (error) {
+        this.logger.error('Failed to parse presence update message', error);
+      }
+    });
+  }
+
+  /**
+   * Broadcast presence update to all users in a room
+   */
+  private broadcastPresenceToRoom(
+    roomId: string,
+    presenceData: { userId: string; status: string; timestamp: number }
+  ): void {
+    this.server.to(roomId).emit('presence:update', {
+      roomId,
+      ...presenceData,
     });
   }
 
@@ -186,13 +224,17 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       }
       this.userSockets.get(userId)!.add(client.id);
 
-      // Cancel any pending disconnect grace period
+      // Cancel any pending disconnect grace period (local)
       const pendingDisconnect = this.disconnectGrace.get(userId);
       if (pendingDisconnect) {
         clearTimeout(pendingDisconnect);
         this.disconnectGrace.delete(userId);
-        this.logger.debug(`Reconnection within grace period: ${userId}`);
+        this.logger.debug(`Reconnection within grace period (local): ${userId}`);
       }
+
+      // Handle reconnection via PresenceService (distributed via Redis)
+      // This cancels grace period across all server instances
+      await this.presenceService.handleReconnection(userId, payload.deviceId);
 
       // Set user online in Redis
       await this.redisService.setUserOnline(userId, {
@@ -219,7 +261,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   /**
    * Handle WebSocket disconnection
-   * Implements grace period for reconnection
+   * Implements grace period for reconnection (both local and distributed via Redis)
    */
   handleDisconnect(client: AuthenticatedSocket): void {
     const user = client.data.user;
@@ -229,6 +271,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     const userId = user.sub;
+    const rooms = client.data.rooms;
 
     // Remove this socket from user's socket set
     const userSocketSet = this.userSockets.get(userId);
@@ -239,9 +282,16 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       if (userSocketSet.size === 0) {
         this.userSockets.delete(userId);
 
-        // Start grace period before notifying rooms of user leaving
+        // Start distributed grace period via PresenceService
+        this.presenceService.startDisconnectGracePeriod(userId).catch((error) => {
+          this.logger.error(
+            `Failed to start grace period: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        });
+
+        // Start local grace period before notifying rooms of user leaving
         const graceTimeout = setTimeout(() => {
-          this.handleUserOffline(userId, client.data.rooms);
+          this.handleUserOffline(userId, rooms);
           this.disconnectGrace.delete(userId);
         }, this.RECONNECT_GRACE_MS);
 
@@ -257,8 +307,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     }
 
     // Leave all rooms for this socket
-    if (client.data.rooms) {
-      for (const roomId of client.data.rooms) {
+    if (rooms) {
+      for (const roomId of rooms) {
         client.leave(roomId);
       }
     }
@@ -288,8 +338,14 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       // Track user in room via Redis (for multi-instance awareness)
       await this.redisService.addUserToRoom(user.sub, roomId);
 
-      // Get online users in room from Redis
-      const onlineUsers = await this.redisService.getOnlineUsersInRoom(roomId);
+      // Set user presence in room (triggers presence:update broadcast via Redis pub/sub)
+      await this.presenceService.setUserPresenceInRoom(user.sub, roomId, 'ONLINE');
+
+      // Get room presence with detailed status info
+      const roomPresence = await this.presenceService.getRoomPresence(roomId);
+      const onlineUsers = roomPresence.members
+        .filter((m) => m.status === 'ONLINE' || m.status === 'BUSY')
+        .map((m) => m.userId);
 
       // Notify room of new user (except sender)
       const presenceEvent: UserPresenceEvent = {
@@ -338,6 +394,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     // Remove user from room in Redis
     await this.redisService.removeUserFromRoom(user.sub, roomId);
+
+    // Remove user presence from room (triggers presence:offline broadcast via Redis pub/sub)
+    await this.redisService.removeUserPresenceFromRoom(user.sub, roomId);
 
     // Notify room of user leaving
     const presenceEvent: UserPresenceEvent = {
@@ -439,6 +498,90 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   /**
+   * Get room presence (all users' presence in a room)
+   * Requires user to be a member of the room
+   *
+   * @example
+   * ```typescript
+   * socket.emit('presence:room', { roomId: 'uuid' }, (response) => {
+   *   console.log(response.members); // Array of { userId, status, lastSeenAt }
+   *   console.log(response.totalOnline); // Number of online users
+   * });
+   * ```
+   */
+  @UseGuards(WsAuthGuard)
+  @UsePipes(new ZodValidationPipe(WsGetRoomPresenceDto))
+  @SubscribeMessage('presence:room')
+  async handleGetRoomPresence(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: WsGetRoomPresenceDto
+  ): Promise<{
+    roomId: string;
+    members: Array<{ userId: string; status: string; lastSeenAt: number }>;
+    totalOnline: number;
+    totalIdle: number;
+    totalOffline: number;
+  }> {
+    const user = client.data.user!;
+
+    // Verify user is a member of the room
+    try {
+      await this.chatService.validateRoomAccess(user.sub, data.roomId);
+    } catch (error) {
+      this.logger.warn(
+        `Room presence check failed for user ${user.sub}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      throw new WsException({
+        code: 'FORBIDDEN',
+        message: 'Not a member of this room',
+      });
+    }
+
+    const presence = await this.presenceService.getRoomPresence(data.roomId);
+    return presence;
+  }
+
+  /**
+   * Set user status (idle, away, busy)
+   * Broadcasts presence update to all rooms the user is in
+   *
+   * @example
+   * ```typescript
+   * socket.emit('presence:status', { status: 'IDLE' });
+   * socket.emit('presence:status', { status: 'AWAY' });
+   * socket.emit('presence:status', { status: 'BUSY' });
+   * ```
+   */
+  @UseGuards(WsAuthGuard)
+  @UsePipes(new ZodValidationPipe(WsSetPresenceStatusDto))
+  @SubscribeMessage('presence:status')
+  async handleSetPresenceStatus(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: WsSetPresenceStatusDto
+  ): Promise<{ success: boolean }> {
+    const user = client.data.user!;
+    const { status } = data;
+
+    // Update global presence
+    await this.redisService.setUserOnline(user.sub, { status });
+
+    // Update presence in all rooms user is in
+    const userRooms = await this.redisService.getUserRooms(user.sub);
+    await Promise.allSettled(
+      userRooms.map((roomId) =>
+        this.presenceService.setUserPresenceInRoom(user.sub, roomId, status).catch((error) => {
+          this.logger.error(
+            `Failed to set presence in room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+          );
+        })
+      )
+    );
+
+    this.logger.debug(`User ${user.username} set status to ${status}`);
+    return { success: true };
+  }
+
+  /**
    * Handle token refresh during active WebSocket connection
    * Allows clients to refresh tokens without disconnecting
    *
@@ -520,16 +663,18 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   /**
    * Handle user going offline after grace period
+   * Uses PresenceService for comprehensive cleanup (Redis + DB + room presence)
    */
   private handleUserOffline(userId: string, rooms?: Set<string>): void {
-    // Update presence status in Redis
-    this.redisService.setUserOffline(userId).catch((error) => {
+    // Use PresenceService for comprehensive offline handling
+    // This handles: Redis presence, room presence sorted sets, and database
+    this.presenceService.setOffline(userId).catch((error) => {
       this.logger.error(
-        `Failed to set user offline in Redis: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Failed to set user offline via PresenceService: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     });
 
-    // Remove user from all rooms in Redis
+    // Remove user from all rooms in Redis (membership tracking)
     if (rooms) {
       for (const roomId of rooms) {
         this.redisService.removeUserFromRoom(userId, roomId).catch((error) => {
@@ -539,6 +684,7 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         });
 
         // Notify all rooms this user was in
+        // Note: presence:update events are also sent via Redis pub/sub by PresenceService
         this.server.to(roomId).emit('user:left', {
           userId,
           roomId,
@@ -546,13 +692,6 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         });
       }
     }
-
-    // Also update presence in database
-    this.chatService.setUserOffline(userId).catch((error) => {
-      this.logger.error(
-        `Failed to set user offline in DB: ${error instanceof Error ? error.message : 'Unknown error'}`
-      );
-    });
 
     this.logger.log(`User went offline after grace period: ${userId}`);
   }

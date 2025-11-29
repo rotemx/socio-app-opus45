@@ -1,4 +1,4 @@
-import { useInfiniteQuery } from '@tanstack/react-query';
+import { useInfiniteQuery, type InfiniteData } from '@tanstack/react-query';
 import { api } from '../services/api';
 import type { Message, CursorPaginatedResponse } from '@socio/types';
 
@@ -6,7 +6,7 @@ export function useChatHistory(roomId: string) {
   return useInfiniteQuery<
     CursorPaginatedResponse<Message>,
     Error,
-    CursorPaginatedResponse<Message>,
+    InfiniteData<CursorPaginatedResponse<Message>>,
     string[],
     string | undefined
   >({

@@ -5,7 +5,8 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
-import { type PrismaService } from '../../database';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { PrismaService } from '../../database';
 import {
   type CreateRoomDto,
   type UpdateRoomDto,

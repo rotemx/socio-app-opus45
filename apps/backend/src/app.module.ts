@@ -85,7 +85,7 @@ import { HttpExceptionFilter } from './common/filters';
       provide: APP_INTERCEPTOR,
       useClass: TransformInterceptor,
     },
-    // Global timeout interceptor
+    // Global timeout interceptor (30 seconds default)
     {
       provide: APP_INTERCEPTOR,
       useClass: TimeoutInterceptor,

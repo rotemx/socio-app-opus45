@@ -3,6 +3,7 @@ import { ChatGateway } from './chat.gateway';
 import { ChatService } from './chat.service';
 import { AuthModule } from '../auth';
 import { PresenceModule } from '../presence/presence.module';
+import { WsAuthGuard } from '../../common/guards/ws-auth.guard';
 
 /**
  * Chat Module
@@ -16,7 +17,7 @@ import { PresenceModule } from '../presence/presence.module';
  */
 @Module({
   imports: [AuthModule, PresenceModule],
-  providers: [ChatGateway, ChatService],
+  providers: [ChatGateway, ChatService, WsAuthGuard],
   exports: [ChatService, ChatGateway],
 })
 export class ChatModule {}

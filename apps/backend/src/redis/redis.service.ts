@@ -9,21 +9,35 @@ import type Redis from 'ioredis';
 import { REDIS_CLIENT, REDIS_KEYS, REDIS_TTL, REDIS_CHANNELS } from './redis.constants';
 
 /**
+ * Presence status types
+ */
+export type PresenceStatus = 'ONLINE' | 'IDLE' | 'AWAY' | 'BUSY' | 'OFFLINE';
+
+/**
  * Presence data structure stored in Redis
  */
 export interface RedisPresenceData {
   userId: string;
-  status: 'ONLINE' | 'AWAY' | 'BUSY' | 'OFFLINE';
+  status: PresenceStatus;
   lastSeenAt: number;
   deviceId?: string;
   rooms?: string[];
 }
 
 /**
+ * Room presence entry (user presence within a specific room)
+ */
+export interface RoomPresenceEntry {
+  userId: string;
+  status: PresenceStatus;
+  lastSeenAt: number;
+}
+
+/**
  * Input for setUserOnline (lastSeenAt is auto-set)
  */
 export interface SetUserOnlineInput {
-  status: 'ONLINE' | 'AWAY' | 'BUSY';
+  status: Exclude<PresenceStatus, 'OFFLINE'>;
   deviceId?: string;
   rooms?: string[];
 }
@@ -492,6 +506,298 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
    */
   async getUserRooms(userId: string): Promise<string[]> {
     return this.smembers(`${REDIS_KEYS.USER}:${userId}:rooms`);
+  }
+
+  // ============================================
+  // Room-Specific Presence (Sorted Sets)
+  // ============================================
+
+  /**
+   * Set user presence in a specific room
+   * Uses sorted set with timestamp as score for efficient queries
+   * Format: room_presence:{roomId} -> { userId: timestamp }
+   *
+   * @param userId - User ID
+   * @param roomId - Room ID
+   * @param status - Presence status (ONLINE, IDLE, AWAY, BUSY)
+   */
+  async setUserPresenceInRoom(
+    userId: string,
+    roomId: string,
+    status: Exclude<PresenceStatus, 'OFFLINE'>
+  ): Promise<void> {
+    try {
+      const now = Date.now();
+      const roomPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}`;
+      const userPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}:${userId}`;
+
+      // Store user in room's presence sorted set (score = timestamp for last activity)
+      await this.zadd(roomPresenceKey, now, userId);
+
+      // Store detailed presence data for the user in this room
+      const presenceData: RoomPresenceEntry = {
+        userId,
+        status,
+        lastSeenAt: now,
+      };
+      await this.setJson(userPresenceKey, presenceData, REDIS_TTL.PRESENCE);
+
+      // Set TTL on the sorted set
+      await this.expire(roomPresenceKey, REDIS_TTL.PRESENCE);
+
+      // Publish presence update for this room
+      await this.publishJson(REDIS_CHANNELS.PRESENCE_UPDATE, {
+        type: 'presence:update',
+        roomId,
+        userId,
+        status,
+        timestamp: now,
+      });
+    } catch (error) {
+      this.logger.error(`Failed to set presence for user ${userId} in room ${roomId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove user presence from a specific room
+   *
+   * @param userId - User ID
+   * @param roomId - Room ID
+   */
+  async removeUserPresenceFromRoom(userId: string, roomId: string): Promise<void> {
+    try {
+      const roomPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}`;
+      const userPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}:${userId}`;
+
+      // Remove from sorted set
+      await this.zrem(roomPresenceKey, userId);
+
+      // Remove detailed presence data
+      await this.del(userPresenceKey);
+
+      // Publish presence update
+      await this.publishJson(REDIS_CHANNELS.PRESENCE_UPDATE, {
+        type: 'presence:offline',
+        roomId,
+        userId,
+        status: 'OFFLINE',
+        timestamp: Date.now(),
+      });
+    } catch (error) {
+      this.logger.error(`Failed to remove presence for user ${userId} from room ${roomId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Get users' presence in a room
+   * Returns users active within the threshold period, with a maximum limit
+   *
+   * @param roomId - Room ID
+   * @param thresholdMs - Only include users active within this period (default: 15 min)
+   * @param limit - Maximum number of users to return (default: 200, max: 500)
+   * @returns Array of presence entries with status and last seen
+   */
+  async getRoomPresenceList(
+    roomId: string,
+    thresholdMs: number = 15 * 60 * 1000,
+    limit: number = 200
+  ): Promise<RoomPresenceEntry[]> {
+    try {
+      // Enforce maximum limit to prevent DoS
+      const safeLimit = Math.min(Math.max(1, limit), 500);
+
+      const roomPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}`;
+      const minScore = Date.now() - thresholdMs;
+
+      // Get active users in the room with limit
+      // Using zrangebyscore with LIMIT to cap results
+      const userIds = await this.client.zrangebyscore(
+        roomPresenceKey,
+        minScore,
+        '+inf',
+        'LIMIT',
+        0,
+        safeLimit
+      );
+
+      if (userIds.length === 0) {
+        return [];
+      }
+
+      // Use pipeline to batch Redis GET operations for better performance
+      const pipeline = this.client.pipeline();
+      for (const userId of userIds) {
+        const userPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}:${userId}`;
+        pipeline.get(userPresenceKey);
+      }
+
+      const results = await pipeline.exec();
+      const presenceEntries: RoomPresenceEntry[] = [];
+      const now = Date.now();
+
+      for (let i = 0; i < userIds.length; i++) {
+        const userId = userIds[i];
+        if (!userId) continue; // Skip if userId is undefined
+
+        const result = results?.[i];
+        const rawData = result?.[1] as string | null;
+
+        if (rawData) {
+          try {
+            const data = JSON.parse(rawData) as RoomPresenceEntry;
+            // Determine effective status based on last seen time
+            const effectiveStatus = this.calculateEffectiveStatus(data.lastSeenAt, data.status);
+            presenceEntries.push({
+              userId: data.userId,
+              status: effectiveStatus,
+              lastSeenAt: data.lastSeenAt,
+            });
+          } catch {
+            // Invalid JSON, treat as online
+            presenceEntries.push({
+              userId,
+              status: 'ONLINE',
+              lastSeenAt: now,
+            });
+          }
+        } else {
+          // User is in sorted set but no detailed data - treat as online
+          presenceEntries.push({
+            userId,
+            status: 'ONLINE',
+            lastSeenAt: now,
+          });
+        }
+      }
+
+      return presenceEntries;
+    } catch (error) {
+      this.logger.error(`Failed to get presence list for room ${roomId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Set user to idle status
+   * Called after inactivity period (5 minutes)
+   *
+   * @param userId - User ID
+   */
+  async setUserIdle(userId: string): Promise<void> {
+    const key = `${REDIS_KEYS.PRESENCE}:${userId}`;
+    const existing = await this.getJson<RedisPresenceData>(key);
+
+    if (existing && existing.status === 'ONLINE') {
+      existing.status = 'IDLE';
+      existing.lastSeenAt = Date.now();
+      await this.setJson(key, existing, REDIS_TTL.PRESENCE);
+
+      // Update presence in all rooms user is in
+      const userRooms = await this.getUserRooms(userId);
+      for (const roomId of userRooms) {
+        try {
+          await this.setUserPresenceInRoom(userId, roomId, 'IDLE');
+        } catch (error) {
+          // Log error but continue with other rooms to avoid inconsistent state
+          this.logger.error(
+            `Failed to set idle status for user ${userId} in room ${roomId}`,
+            error
+          );
+        }
+      }
+
+      // Publish status update
+      await this.publishJson(REDIS_CHANNELS.USER_STATUS, {
+        userId,
+        status: 'IDLE',
+        timestamp: Date.now(),
+      });
+    }
+  }
+
+  /**
+   * Start disconnect grace period
+   * Marks user as potentially disconnecting - will go offline after grace period
+   *
+   * @param userId - User ID
+   * @param graceMs - Grace period in milliseconds (default: 30 seconds)
+   */
+  async startDisconnectGracePeriod(userId: string, graceMs: number = 30000): Promise<void> {
+    const key = `${REDIS_KEYS.DISCONNECT_GRACE}:${userId}`;
+    const expiresAt = Date.now() + graceMs;
+    // Ensure minimum TTL of 1 second (Redis SETEX requires TTL >= 1)
+    const ttlSeconds = Math.max(1, Math.ceil(graceMs / 1000));
+    await this.set(key, String(expiresAt), ttlSeconds);
+  }
+
+  /**
+   * Cancel disconnect grace period (user reconnected)
+   *
+   * @param userId - User ID
+   * @returns true if grace period was cancelled, false if none existed
+   */
+  async cancelDisconnectGracePeriod(userId: string): Promise<boolean> {
+    const key = `${REDIS_KEYS.DISCONNECT_GRACE}:${userId}`;
+    const deleted = await this.del(key);
+    return deleted > 0;
+  }
+
+  /**
+   * Check if user is in disconnect grace period
+   *
+   * @param userId - User ID
+   * @returns true if user is in grace period
+   */
+  async isInDisconnectGracePeriod(userId: string): Promise<boolean> {
+    const key = `${REDIS_KEYS.DISCONNECT_GRACE}:${userId}`;
+    return this.exists(key);
+  }
+
+  /**
+   * Calculate effective presence status based on last seen time
+   *
+   * @param lastSeenAt - Timestamp of last activity
+   * @param currentStatus - Current stored status
+   * @returns Effective status considering inactivity
+   */
+  private calculateEffectiveStatus(
+    lastSeenAt: number,
+    currentStatus: PresenceStatus
+  ): PresenceStatus {
+    if (currentStatus === 'OFFLINE') return 'OFFLINE';
+
+    const now = Date.now();
+    const timeSinceLastSeen = now - lastSeenAt;
+
+    // 15 minutes = offline
+    if (timeSinceLastSeen > 15 * 60 * 1000) {
+      return 'OFFLINE';
+    }
+
+    // 5 minutes = idle (if currently online)
+    if (timeSinceLastSeen > 5 * 60 * 1000 && currentStatus === 'ONLINE') {
+      return 'IDLE';
+    }
+
+    return currentStatus;
+  }
+
+  /**
+   * Clean up stale room presence entries
+   *
+   * @param roomId - Room ID to clean up
+   * @param thresholdMs - Remove entries older than this (default: 15 min)
+   * @returns Number of entries removed
+   */
+  async cleanupStaleRoomPresence(
+    roomId: string,
+    thresholdMs: number = 15 * 60 * 1000
+  ): Promise<number> {
+    const roomPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}`;
+    const maxScore = Date.now() - thresholdMs;
+    return this.zremrangebyscore(roomPresenceKey, '-inf', maxScore);
   }
 
   // ============================================

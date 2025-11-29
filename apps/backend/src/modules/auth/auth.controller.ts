@@ -9,8 +9,10 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { AuthGuard } from '@nestjs/passport';
-import { type AuthService } from './auth.service';
-import { type TwilioService } from './twilio.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { AuthService } from './auth.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { TwilioService } from './twilio.service';
 import {
   type LoginDto,
   type RegisterDto,

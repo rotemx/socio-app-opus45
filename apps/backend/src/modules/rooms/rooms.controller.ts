@@ -1,5 +1,6 @@
 import { Body, Controller, Delete, Get, Param, Patch, Post, Query } from '@nestjs/common';
-import { type RoomsService } from './rooms.service';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
+import { RoomsService } from './rooms.service';
 import {
   type CreateRoomDto,
   type UpdateRoomDto,

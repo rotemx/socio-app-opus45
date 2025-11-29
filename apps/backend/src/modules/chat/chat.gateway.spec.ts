@@ -3,6 +3,7 @@ import type Redis from 'ioredis';
 import { ChatGateway } from './chat.gateway';
 import type { ChatService } from './chat.service';
 import type { AuthService } from '../auth';
+import type { PresenceService } from '../presence/presence.service';
 import type { RedisService } from '../../redis';
 import type { Server, Socket } from 'socket.io';
 
@@ -14,7 +15,17 @@ describe('ChatGateway', () => {
       'validateRoomAccess' | 'getOnlineUsersInRoom' | 'sendMessage' | 'setUserOffline'
     >
   >;
-  let mockAuthService: jest.Mocked<Pick<AuthService, 'verifyAccessToken'>>;
+  let mockAuthService: jest.Mocked<Pick<AuthService, 'verifyAccessToken' | 'validateUser'>>;
+  let mockPresenceService: jest.Mocked<
+    Pick<
+      PresenceService,
+      | 'handleReconnection'
+      | 'setUserPresenceInRoom'
+      | 'getRoomPresence'
+      | 'startDisconnectGracePeriod'
+      | 'setOffline'
+    >
+  >;
   let mockRedisService: jest.Mocked<
     Pick<
       RedisService,
@@ -23,7 +34,9 @@ describe('ChatGateway', () => {
       | 'heartbeat'
       | 'addUserToRoom'
       | 'removeUserFromRoom'
+      | 'removeUserPresenceFromRoom'
       | 'getOnlineUsersInRoom'
+      | 'getUserRooms'
       | 'subscribe'
     >
   >;
@@ -56,6 +69,23 @@ describe('ChatGateway', () => {
 
     mockAuthService = {
       verifyAccessToken: jest.fn(),
+      validateUser: jest.fn().mockResolvedValue({ id: 'user-123', isActive: true }),
+    };
+
+    mockPresenceService = {
+      handleReconnection: jest.fn().mockResolvedValue(undefined),
+      setUserPresenceInRoom: jest.fn().mockResolvedValue(undefined),
+      getRoomPresence: jest.fn().mockResolvedValue({
+        roomId: 'room-123',
+        members: [],
+        totalOnline: 0,
+        totalIdle: 0,
+        totalAway: 0,
+        totalBusy: 0,
+        totalOffline: 0,
+      }),
+      startDisconnectGracePeriod: jest.fn().mockResolvedValue(true),
+      setOffline: jest.fn().mockResolvedValue(undefined),
     };
 
     mockRedisService = {
@@ -64,7 +94,9 @@ describe('ChatGateway', () => {
       heartbeat: jest.fn().mockResolvedValue(undefined),
       addUserToRoom: jest.fn().mockResolvedValue(undefined),
       removeUserFromRoom: jest.fn().mockResolvedValue(undefined),
+      removeUserPresenceFromRoom: jest.fn().mockResolvedValue(undefined),
       getOnlineUsersInRoom: jest.fn().mockResolvedValue([]),
+      getUserRooms: jest.fn().mockResolvedValue([]),
       subscribe: jest.fn().mockResolvedValue(undefined),
     };
 
@@ -104,6 +136,7 @@ describe('ChatGateway', () => {
     gateway = new ChatGateway(
       mockChatService as unknown as ChatService,
       mockAuthService as unknown as AuthService,
+      mockPresenceService as unknown as PresenceService,
       mockRedisService as unknown as RedisService,
       mockPubClient as Redis,
       mockSubClient as Redis
@@ -213,13 +246,29 @@ describe('ChatGateway', () => {
         memberCount: 5,
         isMember: true,
       });
-      mockRedisService.getOnlineUsersInRoom.mockResolvedValue(['user-1', 'user-2']);
+      mockPresenceService.getRoomPresence.mockResolvedValue({
+        roomId: 'room-1',
+        members: [
+          { userId: 'user-1', status: 'ONLINE', lastSeenAt: Date.now() },
+          { userId: 'user-2', status: 'BUSY', lastSeenAt: Date.now() },
+        ],
+        totalOnline: 1,
+        totalIdle: 0,
+        totalAway: 0,
+        totalBusy: 1,
+        totalOffline: 0,
+      });
 
       const result = await gateway.handleJoinRoom(mockSocket as Socket, { roomId: 'room-1' });
 
       expect(mockSocket.join).toHaveBeenCalledWith('room-1');
       expect(mockSocket.to).toHaveBeenCalledWith('room-1');
       expect(mockRedisService.addUserToRoom).toHaveBeenCalledWith(mockUser.sub, 'room-1');
+      expect(mockPresenceService.setUserPresenceInRoom).toHaveBeenCalledWith(
+        mockUser.sub,
+        'room-1',
+        'ONLINE'
+      );
       expect(result).toEqual({
         roomId: 'room-1',
         roomName: 'Test Room',
