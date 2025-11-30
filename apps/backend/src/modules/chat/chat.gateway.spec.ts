@@ -360,6 +360,90 @@ describe('ChatGateway', () => {
         })
       ).rejects.toThrow(WsException);
     });
+
+    it('should throw WsException when user rate limited (60/minute)', async () => {
+      // First rate limit check (user) fails
+      mockRedisService.checkRateLimit.mockResolvedValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt: Date.now() + 30000,
+      });
+
+      await expect(
+        gateway.handleMessage(mockSocket as Socket, {
+          roomId: 'room-1',
+          content: 'Hello!',
+        })
+      ).rejects.toThrow(WsException);
+
+      // Should check user rate limit first
+      expect(mockRedisService.checkRateLimit).toHaveBeenCalledWith(
+        `ws:message:send:user:${mockUser.sub}`,
+        60,
+        60
+      );
+      // Should not proceed to send message
+      expect(mockChatService.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('should throw WsException when room rate limited (1000/minute)', async () => {
+      // First rate limit check (user) passes
+      mockRedisService.checkRateLimit.mockResolvedValueOnce({
+        allowed: true,
+        remaining: 59,
+        resetAt: Date.now() + 60000,
+      });
+      // Second rate limit check (room) fails
+      mockRedisService.checkRateLimit.mockResolvedValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt: Date.now() + 30000,
+      });
+
+      await expect(
+        gateway.handleMessage(mockSocket as Socket, {
+          roomId: 'room-1',
+          content: 'Hello!',
+        })
+      ).rejects.toThrow(WsException);
+
+      // Should check both user and room rate limits
+      expect(mockRedisService.checkRateLimit).toHaveBeenCalledWith(
+        `ws:message:send:user:${mockUser.sub}`,
+        60,
+        60
+      );
+      expect(mockRedisService.checkRateLimit).toHaveBeenCalledWith(
+        `ws:message:send:room:room-1`,
+        1000,
+        60
+      );
+      // Should not proceed to send message
+      expect(mockChatService.sendMessage).not.toHaveBeenCalled();
+    });
+
+    it('should include retryAfter in rate limit error', async () => {
+      const resetAt = Date.now() + 30000;
+      mockRedisService.checkRateLimit.mockResolvedValueOnce({
+        allowed: false,
+        remaining: 0,
+        resetAt,
+      });
+
+      try {
+        await gateway.handleMessage(mockSocket as Socket, {
+          roomId: 'room-1',
+          content: 'Hello!',
+        });
+        fail('Expected WsException to be thrown');
+      } catch (error) {
+        expect(error).toBeInstanceOf(WsException);
+        const wsError = error as WsException;
+        const errorData = wsError.getError() as { code: string; retryAfter: number };
+        expect(errorData.code).toBe('RATE_LIMITED');
+        expect(errorData.retryAfter).toBeGreaterThan(0);
+      }
+    });
   });
 
   describe('handleTyping', () => {

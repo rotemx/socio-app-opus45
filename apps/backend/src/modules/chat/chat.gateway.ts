@@ -477,6 +477,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
   /**
    * Send a message to a room
+   *
+   * Rate limited to:
+   * - 60 messages per minute per user
+   * - 1000 messages per minute per room (prevents spam flooding)
    */
   @UseGuards(WsAuthGuard)
   @UsePipes(new ZodValidationPipe(SendMessageDto))
@@ -489,6 +493,34 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     const { roomId, content, replyToId } = data;
 
     try {
+      // Rate limit: 60 messages per minute per user
+      const userRateLimit = await this.redisService.checkRateLimit(
+        `ws:message:send:user:${user.sub}`,
+        60,
+        60
+      );
+      if (!userRateLimit.allowed) {
+        throw new WsException({
+          code: 'RATE_LIMITED',
+          message: 'Too many messages. Please slow down.',
+          retryAfter: Math.ceil((userRateLimit.resetAt - Date.now()) / 1000),
+        });
+      }
+
+      // Rate limit: 1000 messages per minute per room (prevents room flooding)
+      const roomRateLimit = await this.redisService.checkRateLimit(
+        `ws:message:send:room:${roomId}`,
+        1000,
+        60
+      );
+      if (!roomRateLimit.allowed) {
+        throw new WsException({
+          code: 'RATE_LIMITED',
+          message: 'Room is receiving too many messages. Please wait.',
+          retryAfter: Math.ceil((roomRateLimit.resetAt - Date.now()) / 1000),
+        });
+      }
+
       // Validate room membership and save message
       const message = await this.chatService.sendMessage(user.sub, roomId, content, replyToId);
 
@@ -509,6 +541,10 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
       return messageResponse;
     } catch (error) {
+      // Re-throw WsException directly to preserve original error codes (e.g., RATE_LIMITED)
+      if (error instanceof WsException) {
+        throw error;
+      }
       this.logger.warn(
         `Failed to send message: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
