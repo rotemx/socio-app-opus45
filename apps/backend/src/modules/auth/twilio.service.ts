@@ -5,6 +5,7 @@ import {
   InternalServerErrorException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { z } from 'zod';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { AppConfigService } from '../../config';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
@@ -23,44 +24,44 @@ export interface VerificationStatus {
 }
 
 /**
- * Twilio Verify API response for creating a verification
+ * Zod schema for Twilio API error response
  */
-interface TwilioVerificationResponse {
-  sid: string;
-  service_sid: string;
-  account_sid: string;
-  to: string;
-  channel: string;
-  status: string;
-  valid: boolean;
-  date_created: string;
-  date_updated: string;
-}
+const TwilioErrorResponseSchema = z.object({
+  code: z.number(),
+  message: z.string(),
+  more_info: z.string().optional(),
+  status: z.number().optional(),
+});
 
 /**
- * Twilio Verify API response for checking a verification
+ * Zod schema for Twilio Verify API response for creating a verification
  */
-interface TwilioVerificationCheckResponse {
-  sid: string;
-  service_sid: string;
-  account_sid: string;
-  to: string;
-  channel: string;
-  status: string;
-  valid: boolean;
-  date_created: string;
-  date_updated: string;
-}
+const TwilioVerificationResponseSchema = z.object({
+  sid: z.string(),
+  service_sid: z.string(),
+  account_sid: z.string(),
+  to: z.string(),
+  channel: z.string(),
+  status: z.string(),
+  valid: z.boolean(),
+  date_created: z.string(),
+  date_updated: z.string(),
+});
 
 /**
- * Twilio API error response
+ * Zod schema for Twilio Verify API response for checking a verification
  */
-interface TwilioErrorResponse {
-  code: number;
-  message: string;
-  more_info?: string;
-  status?: number;
-}
+const TwilioVerificationCheckResponseSchema = z.object({
+  sid: z.string(),
+  service_sid: z.string(),
+  account_sid: z.string(),
+  to: z.string(),
+  channel: z.string(),
+  status: z.string(),
+  valid: z.boolean(),
+  date_created: z.string(),
+  date_updated: z.string(),
+});
 
 /**
  * Country code mapping for common countries
@@ -192,7 +193,9 @@ export class TwilioService {
     const keyPrefix =
       operation === 'send' ? this.RATE_LIMIT_SEND_KEY_PREFIX : this.RATE_LIMIT_VERIFY_KEY_PREFIX;
     const maxAttempts =
-      operation === 'send' ? this.RATE_LIMIT_SEND_MAX_ATTEMPTS : this.RATE_LIMIT_VERIFY_MAX_ATTEMPTS;
+      operation === 'send'
+        ? this.RATE_LIMIT_SEND_MAX_ATTEMPTS
+        : this.RATE_LIMIT_VERIFY_MAX_ATTEMPTS;
     const key = `${keyPrefix}:${phone}`;
 
     try {
@@ -218,7 +221,9 @@ export class TwilioService {
         // This could be legitimate (first request) or fail-open
         // Verify Redis is still connected to distinguish
         if (!this.redisService.isConnected()) {
-          this.logger.error(`Redis disconnected during ${operation} rate limit check - failing closed`);
+          this.logger.error(
+            `Redis disconnected during ${operation} rate limit check - failing closed`
+          );
           throw new InternalServerErrorException(
             'Verification service temporarily unavailable. Please try again later.'
           );
@@ -281,15 +286,24 @@ export class TwilioService {
       );
 
       if (!response.ok) {
-        const errorBody = (await response.json()) as TwilioErrorResponse;
-        this.logger.error(`Twilio verification failed: ${errorBody.message} (code: ${errorBody.code})`);
+        const parseResult = TwilioErrorResponseSchema.safeParse(await response.json());
+        if (!parseResult.success) {
+          this.logger.error(`Invalid Twilio error response format: ${parseResult.error.message}`);
+          throw new InternalServerErrorException('Failed to send verification code');
+        }
+        const errorBody = parseResult.data;
+        this.logger.error(
+          `Twilio verification failed: ${errorBody.message} (code: ${errorBody.code})`
+        );
 
         // Handle specific Twilio error codes
         if (errorBody.code === 60200) {
           throw new BadRequestException('Invalid phone number');
         }
         if (errorBody.code === 60203) {
-          throw new BadRequestException('Maximum verification attempts reached for this phone number');
+          throw new BadRequestException(
+            'Maximum verification attempts reached for this phone number'
+          );
         }
         if (errorBody.code === 60212) {
           throw new BadRequestException('Phone number is blocked for verification');
@@ -298,9 +312,16 @@ export class TwilioService {
         throw new InternalServerErrorException('Failed to send verification code');
       }
 
-      const result = (await response.json()) as TwilioVerificationResponse;
+      const parseResult = TwilioVerificationResponseSchema.safeParse(await response.json());
+      if (!parseResult.success) {
+        this.logger.error(`Invalid Twilio verification response format: ${parseResult.error.message}`);
+        throw new InternalServerErrorException('Failed to send verification code');
+      }
+      const result = parseResult.data;
 
-      this.logger.log(`OTP sent successfully to: ${this.maskPhone(formattedPhone)}, status: ${result.status}`);
+      this.logger.log(
+        `OTP sent successfully to: ${this.maskPhone(formattedPhone)}, status: ${result.status}`
+      );
 
       return {
         phone: formattedPhone,
@@ -358,12 +379,21 @@ export class TwilioService {
       );
 
       if (!response.ok) {
-        const errorBody = (await response.json()) as TwilioErrorResponse;
-        this.logger.error(`Twilio verification check failed: ${errorBody.message} (code: ${errorBody.code})`);
+        const parseResult = TwilioErrorResponseSchema.safeParse(await response.json());
+        if (!parseResult.success) {
+          this.logger.error(`Invalid Twilio error response format: ${parseResult.error.message}`);
+          throw new InternalServerErrorException('Failed to verify code');
+        }
+        const errorBody = parseResult.data;
+        this.logger.error(
+          `Twilio verification check failed: ${errorBody.message} (code: ${errorBody.code})`
+        );
 
         // Handle specific Twilio error codes
         if (errorBody.code === 20404) {
-          throw new UnauthorizedException('Verification code expired or not found. Please request a new code.');
+          throw new UnauthorizedException(
+            'Verification code expired or not found. Please request a new code.'
+          );
         }
         if (errorBody.code === 60202) {
           throw new BadRequestException('Maximum verification check attempts reached');
@@ -372,7 +402,12 @@ export class TwilioService {
         throw new InternalServerErrorException('Failed to verify code');
       }
 
-      const result = (await response.json()) as TwilioVerificationCheckResponse;
+      const parseResult = TwilioVerificationCheckResponseSchema.safeParse(await response.json());
+      if (!parseResult.success) {
+        this.logger.error(`Invalid Twilio verification check response format: ${parseResult.error.message}`);
+        throw new InternalServerErrorException('Failed to verify code');
+      }
+      const result = parseResult.data;
 
       this.logger.log(
         `OTP verification result for ${this.maskPhone(formattedPhone)}: status=${result.status}, valid=${result.valid}`

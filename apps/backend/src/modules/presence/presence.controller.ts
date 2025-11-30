@@ -145,10 +145,7 @@ export class PresenceController {
    */
   @Put('room')
   @RateLimit({ limit: 30, windowSeconds: 60, perUser: true })
-  async updateRoomPresence(
-    @CurrentUser() user: JwtPayload,
-    @Body() dto: UpdateRoomPresenceDto
-  ) {
+  async updateRoomPresence(@CurrentUser() user: JwtPayload, @Body() dto: UpdateRoomPresenceDto) {
     await this.verifyRoomMembership(user.sub, dto.roomId);
     await this.presenceService.setUserPresenceInRoom(user.sub, dto.roomId, dto.status);
     return { success: true };

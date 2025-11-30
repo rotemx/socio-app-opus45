@@ -412,9 +412,7 @@ describe('PresenceService', () => {
         { userId: 'user-1' },
         { userId: 'user-2' },
       ]);
-      mockPrismaService.userPresence.findMany.mockResolvedValue([
-        { userId: 'user-1' },
-      ]);
+      mockPrismaService.userPresence.findMany.mockResolvedValue([{ userId: 'user-1' }]);
 
       const result = await service.getRoomOnlineUsers(mockRoomId);
 

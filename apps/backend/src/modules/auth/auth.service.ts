@@ -65,7 +65,9 @@ export class AuthService {
    * Validate user existence and status with caching
    * Used by JwtStrategy and ChatGateway to prevent DB hits on every request
    */
-  async validateUser(userId: string): Promise<{ id: string; isActive: boolean; shadowBanned: boolean } | null> {
+  async validateUser(
+    userId: string
+  ): Promise<{ id: string; isActive: boolean; shadowBanned: boolean } | null> {
     const cacheKey = `auth:validate:${userId}`;
     const CACHE_TTL = 60; // 1 minute cache
 

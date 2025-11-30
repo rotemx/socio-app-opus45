@@ -1,11 +1,12 @@
 import {
   Injectable,
-  CanActivate,
-  ExecutionContext,
+  type CanActivate,
+  type ExecutionContext,
   HttpException,
   HttpStatus,
   Logger,
 } from '@nestjs/common';
+// eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { Reflector } from '@nestjs/core';
 import { type RateLimitConfig, RATE_LIMIT_KEY } from '../decorators/rate-limit.decorator';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
@@ -39,7 +40,7 @@ export class RateLimitGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const ip = request.ip || request.connection.remoteAddress;
     const user = request.user;
-    
+
     // Determine key prefix
     // If explicit prefix provided, use it. Otherwise use controller:handler name
     let prefix = config.keyPrefix;
@@ -88,9 +89,11 @@ export class RateLimitGuard implements CanActivate {
       return true;
     } catch (error) {
       if (error instanceof HttpException) throw error;
-      
+
       // Fail open if Redis is down, but log it
-      this.logger.error(`Rate limiting failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      this.logger.error(
+        `Rate limiting failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
       return true;
     }
   }

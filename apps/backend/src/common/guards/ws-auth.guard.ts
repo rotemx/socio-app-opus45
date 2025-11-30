@@ -1,4 +1,10 @@
-import { type CanActivate, type ExecutionContext, Injectable, Inject, forwardRef } from '@nestjs/common';
+import {
+  type CanActivate,
+  type ExecutionContext,
+  Injectable,
+  Inject,
+  forwardRef,
+} from '@nestjs/common';
 import { WsException } from '@nestjs/websockets';
 import type { Socket } from 'socket.io';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import

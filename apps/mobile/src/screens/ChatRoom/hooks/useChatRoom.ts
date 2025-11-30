@@ -252,8 +252,7 @@ export function useChatRoom(roomId: string): UseChatRoomResult {
       try {
         websocket.sendTyping(roomId, isTyping);
       } catch (error) {
-        // Silently fail for typing indicators - non-critical feature
-        console.debug('[useChatRoom] Failed to send typing indicator:', error);
+        console.error('[useChatRoom] Failed to send typing indicator:', error);
       }
     },
     [roomId]

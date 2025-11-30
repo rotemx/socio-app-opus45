@@ -382,8 +382,7 @@ describe('RedisService', () => {
 
     it('should invalidate cache by pattern using SCAN', async () => {
       // Mock SCAN to return keys in first iteration, then complete
-      mockRedis.scan
-        .mockResolvedValueOnce(['0', ['key1', 'key2', 'key3']]);
+      mockRedis.scan.mockResolvedValueOnce(['0', ['key1', 'key2', 'key3']]);
       mockRedis.del.mockResolvedValue(3);
 
       const result = await service.invalidateCache('test:*');
@@ -450,9 +449,9 @@ describe('RedisService', () => {
     it('should handle setUserOnline errors', async () => {
       mockRedis.setex.mockRejectedValue(new Error('Redis unavailable'));
 
-      await expect(
-        service.setUserOnline('user-123', { status: 'ONLINE' })
-      ).rejects.toThrow('Redis unavailable');
+      await expect(service.setUserOnline('user-123', { status: 'ONLINE' })).rejects.toThrow(
+        'Redis unavailable'
+      );
     });
   });
 });

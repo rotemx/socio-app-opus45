@@ -1,5 +1,5 @@
 import { type ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
-import { Reflector } from '@nestjs/core';
+import { type Reflector } from '@nestjs/core';
 import { RateLimitGuard } from './rate-limit.guard';
 import { type RateLimitConfig } from '../decorators/rate-limit.decorator';
 import type { RedisService } from '../../redis';
@@ -188,7 +188,10 @@ describe('RateLimitGuard', () => {
       const response = context.switchToHttp().getResponse();
       expect(response.header).toHaveBeenCalledWith('X-RateLimit-Limit', '10');
       expect(response.header).toHaveBeenCalledWith('X-RateLimit-Remaining', '5');
-      expect(response.header).toHaveBeenCalledWith('X-RateLimit-Reset', Math.ceil(resetAt / 1000).toString());
+      expect(response.header).toHaveBeenCalledWith(
+        'X-RateLimit-Reset',
+        Math.ceil(resetAt / 1000).toString()
+      );
     });
 
     it('should set Retry-After header when rate limit exceeded', async () => {

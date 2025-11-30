@@ -220,7 +220,9 @@ describe('TwilioService', () => {
       const serviceWithBrokenRedis = new TwilioService(createMockConfigService(), mockRedisService);
 
       await expect(serviceWithBrokenRedis.sendOtp('+972501234567')).rejects.toThrow(
-        new InternalServerErrorException('Verification service temporarily unavailable. Please try again later.')
+        new InternalServerErrorException(
+          'Verification service temporarily unavailable. Please try again later.'
+        )
       );
     });
 
@@ -231,10 +233,15 @@ describe('TwilioService', () => {
         isConnected: jest.fn().mockReturnValue(false),
       } as unknown as RedisService;
 
-      const serviceWithDisconnectedRedis = new TwilioService(createMockConfigService(), mockRedisService);
+      const serviceWithDisconnectedRedis = new TwilioService(
+        createMockConfigService(),
+        mockRedisService
+      );
 
       await expect(serviceWithDisconnectedRedis.sendOtp('+972501234567')).rejects.toThrow(
-        new InternalServerErrorException('Verification service temporarily unavailable. Please try again later.')
+        new InternalServerErrorException(
+          'Verification service temporarily unavailable. Please try again later.'
+        )
       );
 
       // Verify checkRateLimit was never called since connection check failed first
@@ -261,7 +268,9 @@ describe('TwilioService', () => {
       const serviceWithFlakeyRedis = new TwilioService(createMockConfigService(), mockRedisService);
 
       await expect(serviceWithFlakeyRedis.sendOtp('+972501234567')).rejects.toThrow(
-        new InternalServerErrorException('Verification service temporarily unavailable. Please try again later.')
+        new InternalServerErrorException(
+          'Verification service temporarily unavailable. Please try again later.'
+        )
       );
     });
   });

@@ -181,7 +181,9 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     if (pendingDisconnect) {
       clearTimeout(pendingDisconnect);
       this.disconnectGrace.delete(userId);
-      this.logger.debug(`Cancelled disconnect grace period for user ${userId} (connected elsewhere)`);
+      this.logger.debug(
+        `Cancelled disconnect grace period for user ${userId} (connected elsewhere)`
+      );
     }
   }
 

@@ -358,7 +358,10 @@ export class PresenceService {
           await this.setUserPresenceInRoom(userId, roomId, 'ONLINE');
         } catch (roomError) {
           // Log but continue with other rooms
-          this.logger.error(`Failed to restore presence in room ${roomId} for user ${userId}`, roomError);
+          this.logger.error(
+            `Failed to restore presence in room ${roomId} for user ${userId}`,
+            roomError
+          );
         }
       }
     } catch (error) {
