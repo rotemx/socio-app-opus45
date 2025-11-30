@@ -8,12 +8,19 @@ const updateProfileSchema = z.object({
   avatarUrl: z.string().url().optional(),
 });
 
-// Update user settings
-const updateSettingsSchema = z.object({
+// User settings schema (exported for reuse in other services)
+export const userSettingsSchema = z.object({
   notifications: z.boolean().optional(),
   locationSharing: z.boolean().optional(),
   discoverable: z.boolean().optional(),
+  readReceiptsEnabled: z.boolean().optional(),
 });
+
+// Type inference from schema
+export type UserSettings = z.infer<typeof userSettingsSchema>;
+
+// Update user settings (uses same schema)
+const updateSettingsSchema = userSettingsSchema;
 
 // Update user location
 const updateLocationSchema = z.object({

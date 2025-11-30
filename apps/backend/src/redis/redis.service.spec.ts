@@ -415,6 +415,90 @@ describe('RedisService', () => {
     });
   });
 
+  describe('typing indicators', () => {
+    it('should set user typing in a room', async () => {
+      mockRedis.setex.mockResolvedValue('OK');
+      mockRedis.sadd.mockResolvedValue(1);
+      mockRedis.expire.mockResolvedValue(1);
+      mockRedis.smembers.mockResolvedValue(['user-123']);
+      mockRedis.publish.mockResolvedValue(1);
+      mockRedis.pipeline.mockReturnValue({
+        get: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          [null, JSON.stringify({ userId: 'user-123', username: 'testuser' })],
+        ]),
+      });
+
+      const result = await service.setUserTyping('user-123', 'room-456', 'testuser');
+
+      expect(mockRedis.setex).toHaveBeenCalled();
+      expect(mockRedis.sadd).toHaveBeenCalledWith(`${REDIS_KEYS.TYPING}:room-456`, 'user-123');
+      expect(result).toEqual([{ userId: 'user-123', username: 'testuser' }]);
+    });
+
+    it('should remove user typing from a room', async () => {
+      mockRedis.del.mockResolvedValue(1);
+      mockRedis.srem.mockResolvedValue(1);
+      mockRedis.smembers.mockResolvedValue([]);
+      mockRedis.publish.mockResolvedValue(1);
+
+      const result = await service.removeUserTyping('user-123', 'room-456');
+
+      expect(mockRedis.del).toHaveBeenCalledWith(`${REDIS_KEYS.TYPING}:room-456:user-123`);
+      expect(mockRedis.srem).toHaveBeenCalledWith(`${REDIS_KEYS.TYPING}:room-456`, 'user-123');
+      expect(result).toEqual([]);
+    });
+
+    it('should get typing users in a room', async () => {
+      mockRedis.smembers.mockResolvedValue(['user-1', 'user-2']);
+      mockRedis.pipeline.mockReturnValue({
+        get: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          [null, JSON.stringify({ userId: 'user-1', username: 'Alice' })],
+          [null, JSON.stringify({ userId: 'user-2', username: 'Bob' })],
+        ]),
+      });
+
+      const result = await service.getTypingUsers('room-456');
+
+      expect(result).toEqual([
+        { userId: 'user-1', username: 'Alice' },
+        { userId: 'user-2', username: 'Bob' },
+      ]);
+    });
+
+    it('should return empty array when no users typing', async () => {
+      mockRedis.smembers.mockResolvedValue([]);
+
+      const result = await service.getTypingUsers('room-456');
+
+      expect(result).toEqual([]);
+    });
+
+    it('should clean up expired typing users', async () => {
+      mockRedis.smembers.mockResolvedValue(['user-1', 'user-2']);
+      mockRedis.pipeline.mockReturnValue({
+        get: jest.fn().mockReturnThis(),
+        exec: jest.fn().mockResolvedValue([
+          [null, JSON.stringify({ userId: 'user-1', username: 'Alice' })],
+          [null, null], // user-2's data expired
+        ]),
+      });
+      mockRedis.srem.mockResolvedValue(1);
+
+      const result = await service.getTypingUsers('room-456');
+
+      // Should return only user-1
+      expect(result).toEqual([{ userId: 'user-1', username: 'Alice' }]);
+
+      // Wait for non-blocking cleanup to complete
+      await new Promise((resolve) => process.nextTick(resolve));
+
+      // Verify expired user was removed from the typing set
+      expect(mockRedis.srem).toHaveBeenCalledWith(`${REDIS_KEYS.TYPING}:room-456`, 'user-2');
+    });
+  });
+
   describe('error handling', () => {
     it('should propagate Redis get errors', async () => {
       mockRedis.get.mockRejectedValue(new Error('Connection refused'));

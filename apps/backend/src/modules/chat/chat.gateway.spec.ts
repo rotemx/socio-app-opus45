@@ -12,7 +12,13 @@ describe('ChatGateway', () => {
   let mockChatService: jest.Mocked<
     Pick<
       ChatService,
-      'validateRoomAccess' | 'getOnlineUsersInRoom' | 'sendMessage' | 'setUserOffline'
+      | 'validateRoomAccess'
+      | 'getOnlineUsersInRoom'
+      | 'sendMessage'
+      | 'setUserOffline'
+      | 'markMessageAsRead'
+      | 'getReadReceipts'
+      | 'checkUserReadReceiptsEnabled'
     >
   >;
   let mockAuthService: jest.Mocked<Pick<AuthService, 'verifyAccessToken' | 'validateUser'>>;
@@ -38,6 +44,10 @@ describe('ChatGateway', () => {
       | 'getOnlineUsersInRoom'
       | 'getUserRooms'
       | 'subscribe'
+      | 'setUserTyping'
+      | 'removeUserTyping'
+      | 'publishJson'
+      | 'checkRateLimit'
     >
   >;
   let mockPubClient: jest.Mocked<Partial<Redis>>;
@@ -65,6 +75,9 @@ describe('ChatGateway', () => {
       getOnlineUsersInRoom: jest.fn(),
       sendMessage: jest.fn(),
       setUserOffline: jest.fn(),
+      markMessageAsRead: jest.fn(),
+      getReadReceipts: jest.fn(),
+      checkUserReadReceiptsEnabled: jest.fn(),
     };
 
     mockAuthService = {
@@ -98,6 +111,10 @@ describe('ChatGateway', () => {
       getOnlineUsersInRoom: jest.fn().mockResolvedValue([]),
       getUserRooms: jest.fn().mockResolvedValue([]),
       subscribe: jest.fn().mockResolvedValue(undefined),
+      setUserTyping: jest.fn().mockResolvedValue([]),
+      removeUserTyping: jest.fn().mockResolvedValue([]),
+      publishJson: jest.fn().mockResolvedValue(1),
+      checkRateLimit: jest.fn().mockResolvedValue({ allowed: true, remaining: 29, resetAt: Date.now() + 10000 }),
     };
 
     mockPubClient = {
@@ -355,6 +372,78 @@ describe('ChatGateway', () => {
     });
   });
 
+  describe('handleTypingStart', () => {
+    beforeEach(() => {
+      mockSocket.data = { user: mockUser, rooms: new Set(['room-1']) };
+      mockRedisService.setUserTyping.mockResolvedValue([
+        { userId: mockUser.sub, username: mockUser.username },
+      ]);
+    });
+
+    it('should set user typing and return typing users list', async () => {
+      mockChatService.validateRoomAccess.mockResolvedValue({
+        id: 'room-1',
+        name: 'Test Room',
+        memberCount: 5,
+        isMember: true,
+      });
+
+      const result = await gateway.handleTypingStart(mockSocket as Socket, { roomId: 'room-1' });
+
+      expect(mockChatService.validateRoomAccess).toHaveBeenCalledWith(mockUser.sub, 'room-1');
+      expect(mockRedisService.setUserTyping).toHaveBeenCalledWith(
+        mockUser.sub,
+        'room-1',
+        mockUser.username
+      );
+      expect(result).toEqual({
+        roomId: 'room-1',
+        typingUsers: [{ userId: mockUser.sub, username: mockUser.username }],
+      });
+    });
+
+    it('should throw WsException when user is not a room member', async () => {
+      mockChatService.validateRoomAccess.mockRejectedValue(new Error('Not a member'));
+
+      await expect(
+        gateway.handleTypingStart(mockSocket as Socket, { roomId: 'room-1' })
+      ).rejects.toThrow(WsException);
+    });
+  });
+
+  describe('handleTypingStop', () => {
+    beforeEach(() => {
+      mockSocket.data = { user: mockUser, rooms: new Set(['room-1']) };
+      mockRedisService.removeUserTyping.mockResolvedValue([]);
+    });
+
+    it('should remove user typing and return updated typing users list', async () => {
+      mockChatService.validateRoomAccess.mockResolvedValue({
+        id: 'room-1',
+        name: 'Test Room',
+        memberCount: 5,
+        isMember: true,
+      });
+
+      const result = await gateway.handleTypingStop(mockSocket as Socket, { roomId: 'room-1' });
+
+      expect(mockChatService.validateRoomAccess).toHaveBeenCalledWith(mockUser.sub, 'room-1');
+      expect(mockRedisService.removeUserTyping).toHaveBeenCalledWith(mockUser.sub, 'room-1');
+      expect(result).toEqual({
+        roomId: 'room-1',
+        typingUsers: [],
+      });
+    });
+
+    it('should throw WsException when user is not a room member', async () => {
+      mockChatService.validateRoomAccess.mockRejectedValue(new Error('Not a member'));
+
+      await expect(
+        gateway.handleTypingStop(mockSocket as Socket, { roomId: 'room-1' })
+      ).rejects.toThrow(WsException);
+    });
+  });
+
   describe('handleHeartbeat', () => {
     it('should update heartbeat timestamp', async () => {
       mockSocket.data = { user: mockUser, lastHeartbeat: 0 };
@@ -381,6 +470,162 @@ describe('ChatGateway', () => {
       const count = gateway.getOnlineCountInRoom('empty-room');
 
       expect(count).toBe(0);
+    });
+  });
+
+  describe('handleMarkMessageRead', () => {
+    beforeEach(() => {
+      mockSocket.data = { user: mockUser, rooms: new Set(['room-1']) };
+    });
+
+    it('should mark message as read and broadcast to sender', async () => {
+      mockChatService.checkUserReadReceiptsEnabled.mockResolvedValue(true);
+      mockChatService.markMessageAsRead.mockResolvedValue({
+        senderId: 'sender-123',
+        readAt: new Date(),
+      });
+
+      const result = await gateway.handleMarkMessageRead(mockSocket as Socket, {
+        roomId: 'room-1',
+        messageId: 'msg-1',
+      });
+
+      expect(mockRedisService.checkRateLimit).toHaveBeenCalled();
+      expect(mockChatService.checkUserReadReceiptsEnabled).toHaveBeenCalledWith(mockUser.sub);
+      expect(mockChatService.markMessageAsRead).toHaveBeenCalledWith(
+        mockUser.sub,
+        'room-1',
+        'msg-1'
+      );
+      expect(mockRedisService.publishJson).toHaveBeenCalled();
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should not broadcast when user has read receipts disabled', async () => {
+      mockChatService.checkUserReadReceiptsEnabled.mockResolvedValue(false);
+
+      const result = await gateway.handleMarkMessageRead(mockSocket as Socket, {
+        roomId: 'room-1',
+        messageId: 'msg-1',
+      });
+
+      expect(mockChatService.markMessageAsRead).not.toHaveBeenCalled();
+      expect(mockRedisService.publishJson).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should not broadcast when user reads their own message', async () => {
+      mockChatService.checkUserReadReceiptsEnabled.mockResolvedValue(true);
+      mockChatService.markMessageAsRead.mockResolvedValue({
+        senderId: mockUser.sub, // Same as reader
+        readAt: new Date(),
+      });
+
+      const result = await gateway.handleMarkMessageRead(mockSocket as Socket, {
+        roomId: 'room-1',
+        messageId: 'msg-1',
+      });
+
+      expect(mockChatService.markMessageAsRead).toHaveBeenCalled();
+      expect(mockRedisService.publishJson).not.toHaveBeenCalled();
+      expect(result).toEqual({ success: true });
+    });
+
+    it('should throw WsException when markMessageAsRead fails', async () => {
+      mockChatService.checkUserReadReceiptsEnabled.mockResolvedValue(true);
+      mockChatService.markMessageAsRead.mockRejectedValue(new Error('Message not found'));
+
+      await expect(
+        gateway.handleMarkMessageRead(mockSocket as Socket, {
+          roomId: 'room-1',
+          messageId: 'msg-1',
+        })
+      ).rejects.toThrow(WsException);
+    });
+
+    it('should throw WsException when rate limited', async () => {
+      mockRedisService.checkRateLimit.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        resetAt: Date.now() + 10000,
+      });
+
+      await expect(
+        gateway.handleMarkMessageRead(mockSocket as Socket, {
+          roomId: 'room-1',
+          messageId: 'msg-1',
+        })
+      ).rejects.toThrow(WsException);
+
+      expect(mockChatService.markMessageAsRead).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('handleGetReadReceipts', () => {
+    beforeEach(() => {
+      mockSocket.data = { user: mockUser, rooms: new Set(['room-1']) };
+    });
+
+    it('should return read receipts for a message', async () => {
+      mockChatService.getReadReceipts.mockResolvedValue([
+        { userId: 'user-2', username: 'reader1', readAt: new Date() },
+        { userId: 'user-3', username: 'reader2', readAt: new Date() },
+      ]);
+
+      const result = await gateway.handleGetReadReceipts(mockSocket as Socket, {
+        roomId: 'room-1',
+        messageId: 'msg-1',
+      });
+
+      expect(mockRedisService.checkRateLimit).toHaveBeenCalled();
+      expect(mockChatService.getReadReceipts).toHaveBeenCalledWith(mockUser.sub, 'room-1', 'msg-1');
+      expect(result).toEqual({
+        roomId: 'room-1',
+        messageId: 'msg-1',
+        readers: expect.arrayContaining([
+          expect.objectContaining({ userId: 'user-2', username: 'reader1' }),
+          expect.objectContaining({ userId: 'user-3', username: 'reader2' }),
+        ]),
+      });
+    });
+
+    it('should throw WsException when user is not a room member', async () => {
+      mockChatService.getReadReceipts.mockRejectedValue(new Error('Not a member'));
+
+      await expect(
+        gateway.handleGetReadReceipts(mockSocket as Socket, {
+          roomId: 'room-1',
+          messageId: 'msg-1',
+        })
+      ).rejects.toThrow(WsException);
+    });
+
+    it('should throw WsException when getReadReceipts fails', async () => {
+      mockChatService.getReadReceipts.mockRejectedValue(new Error('Message not found'));
+
+      await expect(
+        gateway.handleGetReadReceipts(mockSocket as Socket, {
+          roomId: 'room-1',
+          messageId: 'msg-1',
+        })
+      ).rejects.toThrow(WsException);
+    });
+
+    it('should throw WsException when rate limited', async () => {
+      mockRedisService.checkRateLimit.mockResolvedValue({
+        allowed: false,
+        remaining: 0,
+        resetAt: Date.now() + 10000,
+      });
+
+      await expect(
+        gateway.handleGetReadReceipts(mockSocket as Socket, {
+          roomId: 'room-1',
+          messageId: 'msg-1',
+        })
+      ).rejects.toThrow(WsException);
+
+      expect(mockChatService.getReadReceipts).not.toHaveBeenCalled();
     });
   });
 });

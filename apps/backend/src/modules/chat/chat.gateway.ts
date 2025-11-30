@@ -27,15 +27,22 @@ import {
   LeaveRoomDto,
   SendMessageDto,
   TypingDto,
+  TypingStartDto,
+  TypingStopDto,
   WsTokenRefreshDto,
   WsGetRoomPresenceDto,
   WsSetPresenceStatusDto,
+  WsMarkMessageReadDto,
+  WsGetReadReceiptsDto,
   type RoomJoinedResponse,
   type MessageResponse,
   type UserPresenceEvent,
   type TypingEvent,
+  type TypingUpdateEvent,
   type WsErrorResponse,
   type TokenRefreshResponse,
+  type ReadReceiptEvent,
+  type ReadReceiptsResponse,
 } from './dto/chat.dto';
 
 /**
@@ -157,6 +164,33 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
         this.logger.error('Failed to parse presence update message', error);
       }
     });
+
+    // Subscribe to typing updates and broadcast to room members
+    await this.redisService.subscribe(REDIS_CHANNELS.TYPING_UPDATE, (_channel, message) => {
+      try {
+        const data = JSON.parse(message) as {
+          roomId: string;
+          typingUsers: Array<{ userId: string; username: string }>;
+          timestamp: number;
+        };
+        this.broadcastTypingUpdateToRoom(data.roomId, data.typingUsers);
+      } catch (error) {
+        this.logger.error('Failed to parse typing update message', error);
+      }
+    });
+
+    // Subscribe to read receipt updates and broadcast to message senders
+    await this.redisService.subscribe(REDIS_CHANNELS.READ_RECEIPT_UPDATE, (_channel, message) => {
+      try {
+        const data = JSON.parse(message) as {
+          targetUserId: string;
+          event: ReadReceiptEvent;
+        };
+        this.broadcastReadReceiptToUser(data.targetUserId, data.event);
+      } catch (error) {
+        this.logger.error('Failed to parse read receipt update message', error);
+      }
+    });
   }
 
   /**
@@ -170,6 +204,33 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
       roomId,
       ...presenceData,
     });
+  }
+
+  /**
+   * Broadcast typing update to all users in a room
+   */
+  private broadcastTypingUpdateToRoom(
+    roomId: string,
+    typingUsers: Array<{ userId: string; username: string }>
+  ): void {
+    const event: TypingUpdateEvent = { roomId, typingUsers };
+    this.server.to(roomId).emit('typing:update', event);
+  }
+
+  /**
+   * Broadcast read receipt to all sockets of a specific user (message sender)
+   * This notifies the sender that their message was read
+   *
+   * @param targetUserId - The user ID to send the notification to (message sender)
+   * @param event - The read receipt event data (contains reader info)
+   */
+  private broadcastReadReceiptToUser(targetUserId: string, event: ReadReceiptEvent): void {
+    const socketIds = this.userSockets.get(targetUserId);
+    if (socketIds) {
+      for (const socketId of socketIds) {
+        this.server.to(socketId).emit('message:read', event);
+      }
+    }
   }
 
   /**
@@ -459,7 +520,8 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   /**
-   * Handle typing indicator
+   * Handle typing indicator (legacy - kept for backwards compatibility)
+   * @deprecated Use typing:start and typing:stop instead
    */
   @UseGuards(WsAuthGuard)
   @UsePipes(new ZodValidationPipe(TypingDto))
@@ -480,6 +542,96 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
 
     // Broadcast to room (except sender)
     client.to(roomId).emit('typing', typingEvent);
+  }
+
+  /**
+   * Handle typing start indicator
+   * Sets user as typing in a room with auto-expiry (5 seconds via Redis TTL)
+   * Broadcasts typing:update event to all room members with list of typing users
+   *
+   * @example
+   * ```typescript
+   * socket.emit('typing:start', { roomId: 'uuid' }, (response) => {
+   *   console.log(response.typingUsers); // Array of { userId, username }
+   * });
+   *
+   * // Listen for typing updates
+   * socket.on('typing:update', ({ roomId, typingUsers }) => {
+   *   // Display "[Name] is typing..." or "[Name] and 2 others are typing..."
+   * });
+   * ```
+   */
+  @UseGuards(WsAuthGuard)
+  @UsePipes(new ZodValidationPipe(TypingStartDto))
+  @SubscribeMessage('typing:start')
+  async handleTypingStart(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: TypingStartDto
+  ): Promise<TypingUpdateEvent> {
+    const user = client.data.user!;
+    const { roomId } = data;
+
+    // Validate user is a member of the room (security check)
+    try {
+      await this.chatService.validateRoomAccess(user.sub, roomId);
+    } catch (error) {
+      this.logger.warn(
+        `Room access validation failed for typing:start: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      throw new WsException({
+        code: 'FORBIDDEN',
+        message: 'Not a member of this room',
+      });
+    }
+
+    // Set typing in Redis with TTL (auto-expires after 5 seconds)
+    const typingUsers = await this.redisService.setUserTyping(user.sub, roomId, user.username);
+
+    this.logger.debug(`User ${user.username} started typing in room ${roomId}`);
+
+    return { roomId, typingUsers };
+  }
+
+  /**
+   * Handle typing stop indicator
+   * Removes user from typing list and broadcasts update to room members
+   *
+   * @example
+   * ```typescript
+   * socket.emit('typing:stop', { roomId: 'uuid' }, (response) => {
+   *   console.log(response.typingUsers); // Updated list without the user
+   * });
+   * ```
+   */
+  @UseGuards(WsAuthGuard)
+  @UsePipes(new ZodValidationPipe(TypingStopDto))
+  @SubscribeMessage('typing:stop')
+  async handleTypingStop(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: TypingStopDto
+  ): Promise<TypingUpdateEvent> {
+    const user = client.data.user!;
+    const { roomId } = data;
+
+    // Validate user is a member of the room (security check)
+    try {
+      await this.chatService.validateRoomAccess(user.sub, roomId);
+    } catch (error) {
+      this.logger.warn(
+        `Room access validation failed for typing:stop: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      throw new WsException({
+        code: 'FORBIDDEN',
+        message: 'Not a member of this room',
+      });
+    }
+
+    // Remove typing from Redis
+    const typingUsers = await this.redisService.removeUserTyping(user.sub, roomId);
+
+    this.logger.debug(`User ${user.username} stopped typing in room ${roomId}`);
+
+    return { roomId, typingUsers };
   }
 
   /**
@@ -664,8 +816,167 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
   }
 
   /**
+   * Mark a message as read
+   * Updates the read receipt and broadcasts to the message sender
+   *
+   * Rate limited to 30 requests per 10 seconds per user to prevent abuse
+   *
+   * @example
+   * ```typescript
+   * socket.emit('message:read', { roomId: 'uuid', messageId: 'uuid' }, (response) => {
+   *   console.log(response.success);
+   * });
+   *
+   * // The message sender will receive:
+   * socket.on('message:read', ({ roomId, messageId, userId, username, readAt }) => {
+   *   // Update UI to show "seen by [username]"
+   * });
+   * ```
+   */
+  @UseGuards(WsAuthGuard)
+  @UsePipes(new ZodValidationPipe(WsMarkMessageReadDto))
+  @SubscribeMessage('message:read')
+  async handleMarkMessageRead(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: WsMarkMessageReadDto
+  ): Promise<{ success: boolean }> {
+    const user = client.data.user!;
+    const { roomId, messageId } = data;
+
+    try {
+      // Rate limit: 30 requests per 10 seconds per user
+      const rateLimitResult = await this.redisService.checkRateLimit(
+        `ws:message:read:${user.sub}`,
+        30,
+        10
+      );
+      if (!rateLimitResult.allowed) {
+        throw new WsException({
+          code: 'RATE_LIMITED',
+          message: 'Too many read receipt requests. Please slow down.',
+        });
+      }
+
+      // Check if the user has read receipts enabled
+      const readReceiptsEnabled = await this.chatService.checkUserReadReceiptsEnabled(user.sub);
+      if (!readReceiptsEnabled) {
+        // Silently succeed but don't broadcast - user has disabled read receipts
+        return { success: true };
+      }
+
+      // Mark message as read and get sender info
+      const { senderId, readAt } = await this.chatService.markMessageAsRead(
+        user.sub,
+        roomId,
+        messageId
+      );
+
+      // Don't broadcast if user read their own message
+      if (senderId === user.sub) {
+        return { success: true };
+      }
+
+      // Prepare read receipt event for the message sender
+      // Contains info about WHO read the message (the current user)
+      const readReceiptEvent: ReadReceiptEvent = {
+        roomId,
+        messageId,
+        userId: user.sub, // The reader's ID
+        username: user.username, // The reader's username
+        readAt,
+      };
+
+      // Broadcast ONLY to message sender via Redis pub/sub (for multi-instance support)
+      // Privacy: We don't broadcast to the entire room - only the sender needs to know
+      // We need to include the target user (senderId) separately from the event data
+      await this.redisService.publishJson(REDIS_CHANNELS.READ_RECEIPT_UPDATE, {
+        targetUserId: senderId, // Who should receive this notification
+        event: readReceiptEvent, // The actual event data (reader info)
+      });
+
+      this.logger.debug(
+        `Message ${messageId} marked as read by ${user.username}, notified sender ${senderId}`
+      );
+
+      return { success: true };
+    } catch (error) {
+      // Re-throw WsException directly to preserve original error codes (e.g., RATE_LIMITED)
+      if (error instanceof WsException) {
+        throw error;
+      }
+      this.logger.warn(
+        `Failed to mark message as read: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      throw new WsException({
+        code: 'MARK_READ_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to mark message as read',
+      });
+    }
+  }
+
+  /**
+   * Get read receipts for a specific message
+   * Returns who has read the message
+   *
+   * Rate limited to 20 requests per 10 seconds per user to prevent abuse
+   *
+   * @example
+   * ```typescript
+   * socket.emit('read_receipts:get', { roomId: 'uuid', messageId: 'uuid' }, (response) => {
+   *   console.log(response.readers); // Array of { userId, username, readAt }
+   * });
+   * ```
+   */
+  @UseGuards(WsAuthGuard)
+  @UsePipes(new ZodValidationPipe(WsGetReadReceiptsDto))
+  @SubscribeMessage('read_receipts:get')
+  async handleGetReadReceipts(
+    @ConnectedSocket() client: AuthenticatedSocket,
+    @MessageBody() data: WsGetReadReceiptsDto
+  ): Promise<ReadReceiptsResponse> {
+    const user = client.data.user!;
+    const { roomId, messageId } = data;
+
+    try {
+      // Rate limit: 20 requests per 10 seconds per user
+      const rateLimitResult = await this.redisService.checkRateLimit(
+        `ws:read_receipts:get:${user.sub}`,
+        20,
+        10
+      );
+      if (!rateLimitResult.allowed) {
+        throw new WsException({
+          code: 'RATE_LIMITED',
+          message: 'Too many read receipt requests. Please slow down.',
+        });
+      }
+
+      // Get read receipts (includes membership check)
+      const readers = await this.chatService.getReadReceipts(user.sub, roomId, messageId);
+
+      return {
+        roomId,
+        messageId,
+        readers,
+      };
+    } catch (error) {
+      // Re-throw WsException directly to preserve original error codes (e.g., RATE_LIMITED)
+      if (error instanceof WsException) {
+        throw error;
+      }
+      this.logger.warn(
+        `Failed to get read receipts: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      throw new WsException({
+        code: 'GET_READ_RECEIPTS_FAILED',
+        message: error instanceof Error ? error.message : 'Failed to get read receipts',
+      });
+    }
+  }
+
+  /**
    * Handle user going offline after grace period
-   * Uses PresenceService for comprehensive cleanup (Redis + DB + room presence)
+   * Uses PresenceService for comprehensive cleanup (Redis + DB + room presence + typing)
    */
   private handleUserOffline(userId: string, rooms?: Set<string>): void {
     // Use PresenceService for comprehensive offline handling
@@ -673,6 +984,13 @@ export class ChatGateway implements OnGatewayInit, OnGatewayConnection, OnGatewa
     this.presenceService.setOffline(userId).catch((error) => {
       this.logger.error(
         `Failed to set user offline via PresenceService: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    });
+
+    // Remove typing indicators from all rooms (cleanup ephemeral typing state)
+    this.redisService.removeUserTypingFromAllRooms(userId).catch((error) => {
+      this.logger.error(
+        `Failed to remove typing indicators: ${error instanceof Error ? error.message : 'Unknown error'}`
       );
     });
 

@@ -42,7 +42,7 @@ model User {
   shadowBanned Boolean @default(false) @map("shadow_banned")
 
   // Settings stored as JSON
-  settings Json @default("{\"notifications\": true, \"locationSharing\": true, \"discoverable\": true}")
+  settings Json @default("{\"notifications\": true, \"locationSharing\": true, \"discoverable\": true, \"readReceiptsEnabled\": true}")
 
   // Timestamps
   createdAt    DateTime  @default(now()) @map("created_at") @db.Timestamptz()

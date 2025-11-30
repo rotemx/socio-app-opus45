@@ -22,10 +22,19 @@ const sendMessageSchema = z.object({
   replyToId: z.string().uuid().optional(),
 });
 
-// Typing indicator
+// Typing indicator (legacy - kept for backwards compatibility)
 const typingSchema = z.object({
   roomId: z.string().uuid('Invalid room ID format'),
   isTyping: z.boolean(),
+});
+
+// Typing start/stop (new - separate events)
+const typingStartSchema = z.object({
+  roomId: z.string().uuid('Invalid room ID format'),
+});
+
+const typingStopSchema = z.object({
+  roomId: z.string().uuid('Invalid room ID format'),
 });
 
 // DTO classes
@@ -33,6 +42,8 @@ export class JoinRoomDto extends createZodDto(joinRoomSchema) {}
 export class LeaveRoomDto extends createZodDto(leaveRoomSchema) {}
 export class SendMessageDto extends createZodDto(sendMessageSchema) {}
 export class TypingDto extends createZodDto(typingSchema) {}
+export class TypingStartDto extends createZodDto(typingStartSchema) {}
+export class TypingStopDto extends createZodDto(typingStopSchema) {}
 
 // Response types
 export interface RoomJoinedResponse {
@@ -64,6 +75,15 @@ export interface TypingEvent {
   username: string;
   roomId: string;
   isTyping: boolean;
+}
+
+/**
+ * Typing update event - sent when typing users list changes
+ * Contains the list of all currently typing users in a room
+ */
+export interface TypingUpdateEvent {
+  roomId: string;
+  typingUsers: Array<{ userId: string; username: string }>;
 }
 
 export interface WsErrorResponse {
@@ -103,3 +123,43 @@ const setPresenceStatusSchema = z.object({
 
 export class WsGetRoomPresenceDto extends createZodDto(getRoomPresenceSchema) {}
 export class WsSetPresenceStatusDto extends createZodDto(setPresenceStatusSchema) {}
+
+// Read receipt request - mark a message as read
+const markMessageReadSchema = z.object({
+  roomId: z.string().uuid('Invalid room ID format'),
+  messageId: z.string().uuid('Invalid message ID format'),
+});
+
+// Get read receipts for a message
+const getReadReceiptsSchema = z.object({
+  roomId: z.string().uuid('Invalid room ID format'),
+  messageId: z.string().uuid('Invalid message ID format'),
+});
+
+export class WsMarkMessageReadDto extends createZodDto(markMessageReadSchema) {}
+export class WsGetReadReceiptsDto extends createZodDto(getReadReceiptsSchema) {}
+
+/**
+ * Read receipt event - sent when a user reads messages
+ * Broadcast to message senders to show "seen" status
+ */
+export interface ReadReceiptEvent {
+  roomId: string;
+  messageId: string;
+  userId: string;
+  username: string;
+  readAt: Date;
+}
+
+/**
+ * Read receipt response - who has read a specific message
+ */
+export interface ReadReceiptsResponse {
+  roomId: string;
+  messageId: string;
+  readers: Array<{
+    userId: string;
+    username: string;
+    readAt: Date;
+  }>;
+}

@@ -3,6 +3,7 @@ import { Injectable, Logger, ForbiddenException, NotFoundException } from '@nest
 import { PrismaService } from '../../database';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { PresenceService } from '../presence/presence.service';
+import { userSettingsSchema, type UserSettings } from '../users/dto/users.dto';
 
 /**
  * Room info returned by validateRoomAccess
@@ -12,6 +13,23 @@ export interface RoomAccessInfo {
   name: string;
   memberCount: number;
   isMember: boolean;
+}
+
+/**
+ * Read receipt info for a message
+ */
+export interface MessageReadReceipt {
+  userId: string;
+  username: string;
+  readAt: Date;
+}
+
+/**
+ * Helper to safely parse user settings from Prisma JSON field
+ */
+function parseUserSettings(settings: unknown): UserSettings {
+  const result = userSettingsSchema.safeParse(settings);
+  return result.success ? result.data : {};
 }
 
 /**
@@ -310,5 +328,179 @@ export class ChatService {
     });
 
     this.logger.debug(`Message deleted: ${messageId} by ${userId}`);
+  }
+
+  /**
+   * Mark a message as read for a user
+   * Updates the ReadReceipt record with the last read message
+   *
+   * @param userId - User ID who read the message
+   * @param roomId - Room ID
+   * @param messageId - Message ID that was read
+   * @returns The message sender ID (for broadcasting read receipt)
+   * @throws ForbiddenException if user is not a member
+   * @throws NotFoundException if message doesn't exist
+   */
+  async markMessageAsRead(
+    userId: string,
+    roomId: string,
+    messageId: string
+  ): Promise<{ senderId: string; readAt: Date }> {
+    // Verify membership
+    const membership = await this.prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('Must be a member to mark messages as read');
+    }
+
+    // Verify message exists and is in the correct room
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, roomId: true, senderId: true },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (message.roomId !== roomId) {
+      throw new ForbiddenException('Message does not belong to this room');
+    }
+
+    // Don't create read receipt for own messages
+    if (message.senderId === userId) {
+      return { senderId: message.senderId, readAt: new Date() };
+    }
+
+    const now = new Date();
+
+    // Upsert read receipt
+    await this.prisma.readReceipt.upsert({
+      where: {
+        roomId_userId: { roomId, userId },
+      },
+      update: {
+        lastReadMessageId: messageId,
+        lastReadAt: now,
+      },
+      create: {
+        roomId,
+        userId,
+        lastReadMessageId: messageId,
+        lastReadAt: now,
+      },
+    });
+
+    // Also update the member's lastReadAt
+    await this.prisma.roomMember.update({
+      where: { roomId_userId: { roomId, userId } },
+      data: { lastReadAt: now },
+    });
+
+    this.logger.debug(`Message ${messageId} marked as read by user ${userId}`);
+
+    return { senderId: message.senderId, readAt: now };
+  }
+
+  /**
+   * Get users who have read a specific message
+   * Returns users whose lastReadAt is after the message creation time
+   *
+   * @param userId - Calling user ID (for authorization)
+   * @param roomId - Room ID
+   * @param messageId - Message ID
+   * @returns Array of users who have read the message
+   * @throws ForbiddenException if user is not a room member
+   * @throws NotFoundException if message doesn't exist
+   */
+  async getReadReceipts(
+    userId: string,
+    roomId: string,
+    messageId: string
+  ): Promise<MessageReadReceipt[]> {
+    // Verify caller is a member (defense in depth - gateway also checks)
+    const membership = await this.prisma.roomMember.findUnique({
+      where: { roomId_userId: { roomId, userId } },
+    });
+
+    if (!membership) {
+      throw new ForbiddenException('Must be a member to view read receipts');
+    }
+
+    // Get message creation time
+    const message = await this.prisma.message.findUnique({
+      where: { id: messageId },
+      select: { id: true, roomId: true, createdAt: true, senderId: true },
+    });
+
+    if (!message) {
+      throw new NotFoundException('Message not found');
+    }
+
+    if (message.roomId !== roomId) {
+      throw new ForbiddenException('Message does not belong to this room');
+    }
+
+    // Get all read receipts for this room where:
+    // 1. lastReadMessageId matches or lastReadAt is after message creation
+    // 2. User is not the message sender (sender doesn't need to "read" their own message)
+    // Include user settings to filter by readReceiptsEnabled in a single query
+    const readReceipts = await this.prisma.readReceipt.findMany({
+      where: {
+        roomId,
+        userId: { not: message.senderId },
+        OR: [
+          { lastReadMessageId: messageId },
+          { lastReadAt: { gte: message.createdAt } },
+        ],
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, settings: true },
+        },
+      },
+    });
+
+    // Filter to only include users with read receipts enabled (avoid N+1 by checking inline)
+    const readers: MessageReadReceipt[] = [];
+
+    for (const receipt of readReceipts) {
+      const settings = parseUserSettings(receipt.user.settings);
+
+      // Only include if read receipts are enabled (default: true)
+      if (settings.readReceiptsEnabled !== false) {
+        readers.push({
+          userId: receipt.user.id,
+          username: receipt.user.username,
+          readAt: receipt.lastReadAt,
+        });
+      }
+    }
+
+    return readers;
+  }
+
+  /**
+   * Check if a user has read receipts enabled
+   *
+   * @param userId - User ID
+   * @returns true if read receipts are enabled (default: true)
+   */
+  async checkUserReadReceiptsEnabled(userId: string): Promise<boolean> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    });
+
+    if (!user) {
+      return false;
+    }
+
+    const settings = parseUserSettings(user.settings);
+
+    // Default to true if not explicitly set to false
+    return settings.readReceiptsEnabled !== false;
   }
 }

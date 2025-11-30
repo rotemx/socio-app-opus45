@@ -4,6 +4,7 @@ import {
   type OnModuleDestroy,
   type OnModuleInit,
   Inject,
+  BadRequestException,
 } from '@nestjs/common';
 import type Redis from 'ioredis';
 import { REDIS_CLIENT, REDIS_KEYS, REDIS_TTL, REDIS_CHANNELS } from './redis.constants';
@@ -798,6 +799,175 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     const roomPresenceKey = `${REDIS_KEYS.ROOM_PRESENCE}:${roomId}`;
     const maxScore = Date.now() - thresholdMs;
     return this.zremrangebyscore(roomPresenceKey, '-inf', maxScore);
+  }
+
+  // ============================================
+  // Typing Indicators
+  // ============================================
+
+  /**
+   * Set user as typing in a room
+   * Uses Redis SET with TTL for auto-expiry after 5 seconds
+   *
+   * @param userId - User ID
+   * @param roomId - Room ID
+   * @param username - Username for display
+   * @returns List of currently typing users in the room
+   */
+  async setUserTyping(
+    userId: string,
+    roomId: string,
+    username: string
+  ): Promise<Array<{ userId: string; username: string }>> {
+    // Input validation - inputs should already be validated by gateway DTOs
+    if (!userId || !roomId || !username) {
+      throw new BadRequestException('setUserTyping requires userId, roomId, and username');
+    }
+
+    try {
+      const userTypingKey = `${REDIS_KEYS.TYPING}:${roomId}:${userId}`;
+      const roomTypingKey = `${REDIS_KEYS.TYPING}:${roomId}`;
+
+      // Store user's typing data with TTL
+      await this.setJson(
+        userTypingKey,
+        { userId, username, timestamp: Date.now() },
+        REDIS_TTL.TYPING
+      );
+
+      // Add user to room's typing set
+      await this.sadd(roomTypingKey, userId);
+
+      // Always refresh TTL to prevent premature expiry when users continue typing
+      await this.expire(roomTypingKey, REDIS_TTL.TYPING);
+
+      // Get current typing users
+      const typingUsers = await this.getTypingUsers(roomId);
+
+      // Publish typing update
+      await this.publishJson(REDIS_CHANNELS.TYPING_UPDATE, {
+        roomId,
+        typingUsers,
+        timestamp: Date.now(),
+      });
+
+      return typingUsers;
+    } catch (error) {
+      this.logger.error(`Failed to set typing status for user ${userId} in room ${roomId}`, error);
+      throw error;
+    }
+  }
+
+  /**
+   * Remove user from typing in a room
+   *
+   * @param userId - User ID
+   * @param roomId - Room ID
+   * @returns List of currently typing users in the room
+   */
+  async removeUserTyping(
+    userId: string,
+    roomId: string
+  ): Promise<Array<{ userId: string; username: string }>> {
+    // Input validation - inputs should already be validated by gateway DTOs
+    if (!userId || !roomId) {
+      throw new BadRequestException('removeUserTyping requires userId and roomId');
+    }
+
+    try {
+      const userTypingKey = `${REDIS_KEYS.TYPING}:${roomId}:${userId}`;
+      const roomTypingKey = `${REDIS_KEYS.TYPING}:${roomId}`;
+
+      // Remove user's typing data
+      await this.del(userTypingKey);
+
+      // Remove from room's typing set
+      await this.srem(roomTypingKey, userId);
+
+      // Get current typing users
+      const typingUsers = await this.getTypingUsers(roomId);
+
+      // Publish typing update
+      await this.publishJson(REDIS_CHANNELS.TYPING_UPDATE, {
+        roomId,
+        typingUsers,
+        timestamp: Date.now(),
+      });
+
+      return typingUsers;
+    } catch (error) {
+      this.logger.error(
+        `Failed to remove typing status for user ${userId} in room ${roomId}`,
+        error
+      );
+      throw error;
+    }
+  }
+
+  /**
+   * Get list of users currently typing in a room
+   *
+   * @param roomId - Room ID
+   * @returns Array of typing users with userId and username
+   */
+  async getTypingUsers(roomId: string): Promise<Array<{ userId: string; username: string }>> {
+    const roomTypingKey = `${REDIS_KEYS.TYPING}:${roomId}`;
+
+    // Get all user IDs in the typing set
+    const userIds = await this.smembers(roomTypingKey);
+    if (userIds.length === 0) {
+      return [];
+    }
+
+    // Get detailed data for each user using pipeline for efficiency
+    const pipeline = this.client.pipeline();
+    for (const id of userIds) {
+      const userTypingKey = `${REDIS_KEYS.TYPING}:${roomId}:${id}`;
+      pipeline.get(userTypingKey);
+    }
+
+    const results = await pipeline.exec();
+    const typingUsers: Array<{ userId: string; username: string }> = [];
+    const expiredUsers: string[] = [];
+
+    for (let i = 0; i < userIds.length; i++) {
+      const userId = userIds[i];
+      if (!userId) continue;
+
+      const result = results?.[i];
+      const rawData = result?.[1] as string | null;
+
+      if (rawData) {
+        try {
+          const data = JSON.parse(rawData) as { userId: string; username: string };
+          typingUsers.push({ userId: data.userId, username: data.username });
+        } catch {
+          expiredUsers.push(userId);
+        }
+      } else {
+        // User's typing data expired but still in set - mark for cleanup
+        expiredUsers.push(userId);
+      }
+    }
+
+    // Clean up expired users from the set (non-blocking)
+    if (expiredUsers.length > 0) {
+      this.srem(roomTypingKey, ...expiredUsers).catch((error) => {
+        this.logger.error(`Failed to clean up expired typing users: ${error}`);
+      });
+    }
+
+    return typingUsers;
+  }
+
+  /**
+   * Remove user from typing in all rooms (called on disconnect)
+   *
+   * @param userId - User ID
+   */
+  async removeUserTypingFromAllRooms(userId: string): Promise<void> {
+    const userRooms = await this.getUserRooms(userId);
+    await Promise.allSettled(userRooms.map((roomId) => this.removeUserTyping(userId, roomId)));
   }
 
   // ============================================

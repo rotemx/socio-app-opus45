@@ -37,6 +37,8 @@ export const REDIS_KEYS = {
   SOCKET_IO: 'socket.io',
   /** Disconnect grace period tracking */
   DISCONNECT_GRACE: 'disconnect_grace',
+  /** Typing indicators (ephemeral, per room) */
+  TYPING: 'typing',
 } as const;
 
 /**
@@ -51,6 +53,10 @@ export const REDIS_CHANNELS = {
   ROOM_EVENT: 'room:event',
   /** Message events */
   MESSAGE_EVENT: 'message:event',
+  /** Typing indicator updates */
+  TYPING_UPDATE: 'typing:update',
+  /** Read receipt updates */
+  READ_RECEIPT_UPDATE: 'read_receipt:update',
 } as const;
 
 /**
@@ -69,4 +75,6 @@ export const REDIS_TTL = {
   ROOM_CACHE: 5 * 60,
   /** User cache TTL (5 minutes) */
   USER_CACHE: 5 * 60,
+  /** Typing indicator TTL (5 seconds for auto-expiry) */
+  TYPING: 5,
 } as const;
