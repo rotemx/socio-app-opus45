@@ -5,6 +5,7 @@ import {
   ForbiddenException,
   ConflictException,
 } from '@nestjs/common';
+import { Cron, CronExpression } from '@nestjs/schedule';
 // eslint-disable-next-line @typescript-eslint/consistent-type-imports -- NestJS DI needs runtime import
 import { PrismaService } from '../../database';
 import {
@@ -13,6 +14,30 @@ import {
   type RoomDiscoveryDto,
   type UpdateMemberRoleDto,
 } from './dto/rooms.dto';
+
+/**
+ * GeoJSON Point structure for location data
+ * Index signature required for Prisma JSON compatibility
+ */
+interface GeoJsonPoint {
+  type: 'Point';
+  coordinates: [number, number]; // [longitude, latitude]
+  [key: string]: unknown; // Required for Prisma JSON type compatibility
+}
+
+/**
+ * Weighted location for centroid calculation
+ */
+interface WeightedLocation {
+  lat: number;
+  lng: number;
+  weight: number;
+}
+
+/** Creator weight in location calculation (40%) */
+const CREATOR_WEIGHT = 0.4;
+/** Total members weight in location calculation (60%) */
+const MEMBERS_WEIGHT = 0.6;
 
 /**
  * Rooms Service
@@ -60,6 +85,13 @@ export class RoomsService {
         role: 'CREATOR',
         joinLocation: room.location ?? undefined,
       },
+    });
+
+    // Calculate initial room location (async, non-blocking)
+    this.calculateRoomLocation(room.id).catch((error) => {
+      this.logger.error(
+        `Failed to calculate initial location for room ${room.id}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     });
 
     return room;
@@ -171,7 +203,7 @@ export class RoomsService {
       throw new ForbiddenException('Room is full');
     }
 
-    return this.prisma.roomMember.create({
+    const member = await this.prisma.roomMember.create({
       data: {
         roomId,
         userId,
@@ -180,6 +212,15 @@ export class RoomsService {
           : undefined,
       },
     });
+
+    // Recalculate room location after member joins (async, non-blocking)
+    this.calculateRoomLocation(roomId).catch((error) => {
+      this.logger.error(
+        `Failed to recalculate location after join for room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+    });
+
+    return member;
   }
 
   /**
@@ -200,6 +241,13 @@ export class RoomsService {
 
     await this.prisma.roomMember.delete({
       where: { roomId_userId: { roomId, userId } },
+    });
+
+    // Recalculate room location after member leaves (async, non-blocking)
+    this.calculateRoomLocation(roomId).catch((error) => {
+      this.logger.error(
+        `Failed to recalculate location after leave for room ${roomId}: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
     });
   }
 
@@ -292,5 +340,227 @@ export class RoomsService {
       })),
       cursor: memberships.length === limit ? memberships[memberships.length - 1]?.id : null,
     };
+  }
+
+  // =====================================================
+  // DYNAMIC ROOM LOCATION CALCULATION
+  // =====================================================
+
+  /**
+   * Calculate dynamic room location based on weighted member positions
+   *
+   * Formula:
+   * - 40% weight: Creator's current location
+   * - 60% weight: Distributed among members based on their activity weights
+   *
+   * @param roomId - Room ID to calculate location for
+   * @returns Updated room with computed location, or null if calculation not possible
+   */
+  async calculateRoomLocation(roomId: string): Promise<GeoJsonPoint | null> {
+    const room = await this.prisma.chatRoom.findUnique({
+      where: { id: roomId },
+      include: {
+        creator: {
+          select: { id: true, currentLocation: true },
+        },
+        members: {
+          select: {
+            userId: true,
+            joinLocation: true,
+            activityWeight: true,
+            user: {
+              select: { currentLocation: true },
+            },
+          },
+        },
+      },
+    });
+
+    if (!room) {
+      this.logger.warn(`Room not found for location calculation: ${roomId}`);
+      return null;
+    }
+
+    const weightedLocations: WeightedLocation[] = [];
+    let totalWeight = 0;
+
+    // Add creator location (40% weight)
+    const creatorLocation = this.extractLocation(room.creator?.currentLocation);
+    if (creatorLocation) {
+      weightedLocations.push({
+        lat: creatorLocation.lat,
+        lng: creatorLocation.lng,
+        weight: CREATOR_WEIGHT,
+      });
+      totalWeight += CREATOR_WEIGHT;
+    }
+
+    // Calculate total activity weight of all members for normalization
+    const totalActivityWeight = room.members.reduce(
+      (sum, m) => sum + Number(m.activityWeight),
+      0
+    );
+
+    // Add member locations (60% weight distributed by activity)
+    if (totalActivityWeight > 0) {
+      for (const member of room.members) {
+        // Prefer current location, fall back to join location
+        const memberLocation =
+          this.extractLocation(member.user.currentLocation) ||
+          this.extractLocation(member.joinLocation);
+
+        if (memberLocation) {
+          // Normalize activity weight and apply to 60% member allocation
+          const normalizedWeight =
+            (Number(member.activityWeight) / totalActivityWeight) * MEMBERS_WEIGHT;
+
+          weightedLocations.push({
+            lat: memberLocation.lat,
+            lng: memberLocation.lng,
+            weight: normalizedWeight,
+          });
+          totalWeight += normalizedWeight;
+        }
+      }
+    }
+
+    // If no valid locations, use room's original location
+    if (weightedLocations.length === 0) {
+      this.logger.debug(`No member locations for room ${roomId}, keeping original location`);
+      return null;
+    }
+
+    // Calculate weighted centroid
+    const computedLocation = this.calculateWeightedCentroid(weightedLocations, totalWeight);
+
+    // Update room with computed location
+    await this.prisma.chatRoom.update({
+      where: { id: roomId },
+      data: {
+        computedLocation: {
+          type: computedLocation.type,
+          coordinates: computedLocation.coordinates,
+        },
+      },
+    });
+
+    this.logger.debug(
+      `Computed location for room ${roomId}: [${computedLocation.coordinates[0]}, ${computedLocation.coordinates[1]}]`
+    );
+
+    return computedLocation;
+  }
+
+  /**
+   * Extract lat/lng from various location JSON formats
+   */
+  private extractLocation(location: unknown): { lat: number; lng: number } | null {
+    if (!location || typeof location !== 'object') {
+      return null;
+    }
+
+    const loc = location as Record<string, unknown>;
+
+    // GeoJSON Point format: { type: 'Point', coordinates: [lng, lat] }
+    if (loc.type === 'Point' && Array.isArray(loc.coordinates)) {
+      const coords = loc.coordinates as number[];
+      const lng = coords[0];
+      const lat = coords[1];
+      if (
+        lng !== undefined &&
+        lat !== undefined &&
+        this.isValidCoordinate(lat, lng)
+      ) {
+        return { lat, lng };
+      }
+    }
+
+    // Simple format: { lat, lng } or { latitude, longitude }
+    const lat = loc.lat ?? loc.latitude;
+    const lng = loc.lng ?? loc.longitude;
+
+    if (
+      typeof lat === 'number' &&
+      typeof lng === 'number' &&
+      this.isValidCoordinate(lat, lng)
+    ) {
+      return { lat, lng };
+    }
+
+    return null;
+  }
+
+  /**
+   * Validate that coordinates are within valid ranges
+   */
+  private isValidCoordinate(lat: number, lng: number): boolean {
+    return (
+      typeof lat === 'number' &&
+      typeof lng === 'number' &&
+      !isNaN(lat) &&
+      !isNaN(lng) &&
+      lat >= -90 &&
+      lat <= 90 &&
+      lng >= -180 &&
+      lng <= 180
+    );
+  }
+
+  /**
+   * Calculate weighted centroid from multiple locations
+   */
+  private calculateWeightedCentroid(
+    locations: WeightedLocation[],
+    totalWeight: number
+  ): GeoJsonPoint {
+    let sumLat = 0;
+    let sumLng = 0;
+
+    for (const loc of locations) {
+      sumLat += loc.lat * loc.weight;
+      sumLng += loc.lng * loc.weight;
+    }
+
+    // Normalize by total weight
+    const centroidLat = totalWeight > 0 ? sumLat / totalWeight : sumLat;
+    const centroidLng = totalWeight > 0 ? sumLng / totalWeight : sumLng;
+
+    return {
+      type: 'Point',
+      coordinates: [centroidLng, centroidLat],
+    };
+  }
+
+  /**
+   * Recalculate location for all active rooms
+   * Runs hourly via cron job
+   */
+  @Cron(CronExpression.EVERY_HOUR)
+  async recalculateAllRoomLocations(): Promise<void> {
+    this.logger.log('Starting hourly room location recalculation');
+
+    const activeRooms = await this.prisma.chatRoom.findMany({
+      where: { isActive: true },
+      select: { id: true },
+    });
+
+    let successCount = 0;
+    let errorCount = 0;
+
+    for (const room of activeRooms) {
+      try {
+        await this.calculateRoomLocation(room.id);
+        successCount++;
+      } catch (error) {
+        errorCount++;
+        this.logger.error(
+          `Failed to recalculate location for room ${room.id}: ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+      }
+    }
+
+    this.logger.log(
+      `Room location recalculation complete: ${successCount} success, ${errorCount} errors`
+    );
   }
 }
