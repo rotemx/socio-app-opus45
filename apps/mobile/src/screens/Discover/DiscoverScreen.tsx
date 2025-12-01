@@ -1,12 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react';
-import { View, Text, FlatList, TouchableOpacity, StyleSheet, Platform, PermissionsAndroid, Alert } from 'react-native';
+import { useState, useCallback, useEffect } from 'react';
+import { View, Text, TouchableOpacity, StyleSheet, Platform, PermissionsAndroid, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import type { RootStackScreenProps } from '../../navigation/types';
 import type { RoomWithDistance, GeoLocation } from '@socio/types';
-// import { useRoomDiscovery } from '@socio/shared'; // Uncomment when connecting to backend
 import { colors, spacing, radius } from '@socio/ui';
-import { RoomDiscoveryMap } from '../RoomDiscovery';
+import { RoomDiscoveryMap, RoomDiscoveryList } from '../RoomDiscovery';
 
 type Props = RootStackScreenProps<'Discover'>;
 
@@ -103,33 +102,14 @@ async function requestLocationPermission(): Promise<boolean> {
 }
 
 /**
- * Format distance in meters to human-readable string
- */
-function formatDistance(meters: number): string {
-  if (meters < 150) {
-    return `${Math.round(meters * 3.28084)} ft`;
-  }
-  const miles = meters / 1609.34;
-  return `${miles.toFixed(1)} mi`;
-}
-
-/**
  * Discover screen - Browse and discover nearby chat rooms
- * Supports both list and map views
+ * Supports both list and map views with pull-to-refresh
  */
 export function DiscoverScreen(): React.JSX.Element {
   const navigation = useNavigation<Props['navigation']>();
   const [viewMode, setViewMode] = useState<ViewMode>('list');
   const [userLocation, setUserLocation] = useState<GeoLocation | null>(null);
   const [hasLocationPermission, setHasLocationPermission] = useState(false);
-
-  // For now, use placeholder data. In production, use useRoomDiscovery hook:
-  // const { data: rooms, isLoading } = useRoomDiscovery({
-  //   location: userLocation ?? { latitude: 0, longitude: 0 },
-  //   radiusKm: 5,
-  // });
-  const rooms = PLACEHOLDER_ROOMS;
-  const isLoading = false;
 
   useEffect(() => {
     const initLocation = async () => {
@@ -164,58 +144,22 @@ export function DiscoverScreen(): React.JSX.Element {
     // In production, refresh user location here
   }, [hasLocationPermission]);
 
-  const renderRoom = ({ item }: { item: RoomWithDistance }): React.JSX.Element => (
-    <TouchableOpacity
-      style={styles.roomCard}
-      onPress={() => handleJoinRoom(item)}
-      accessibilityLabel={`Join ${item.name} room`}
-      accessibilityRole="button"
-    >
-      <View style={styles.roomHeader}>
-        <Text style={styles.roomName} numberOfLines={1}>
-          {item.name}
-        </Text>
-        <View style={styles.distanceBadge}>
-          <Text style={styles.distanceText}>{formatDistance(item.distanceMeters)}</Text>
-        </View>
-      </View>
-      <Text style={styles.roomDescription} numberOfLines={2}>
-        {item.description}
-      </Text>
-      <View style={styles.roomFooter}>
-        <View style={styles.onlineDot} />
-        <Text style={styles.memberCount}>{item.memberCount} members online</Text>
-      </View>
-    </TouchableOpacity>
-  );
-
   const renderListView = () => (
-    <FlatList
-      data={rooms}
-      renderItem={renderRoom}
-      keyExtractor={(item) => item.id}
-      style={styles.list}
-      contentContainerStyle={styles.listContent}
-      showsVerticalScrollIndicator={false}
-      accessibilityLabel="Nearby rooms list"
-      ListEmptyComponent={
-        <View style={styles.emptyState}>
-          <Text style={styles.emptyText}>
-            No rooms found nearby.{'\n'}Try expanding your search radius.
-          </Text>
-        </View>
-      }
+    <RoomDiscoveryList
+      userLocation={userLocation}
+      onRoomPress={handleJoinRoom}
+      placeholderRooms={PLACEHOLDER_ROOMS}
     />
   );
 
   const renderMapView = () => (
     <GestureHandlerRootView style={styles.mapContainer}>
       <RoomDiscoveryMap
-        rooms={rooms}
+        rooms={PLACEHOLDER_ROOMS}
         userLocation={userLocation}
         onJoinRoom={handleJoinRoom}
         onLocateMe={handleLocateMe}
-        isLoading={isLoading}
+        isLoading={false}
       />
     </GestureHandlerRootView>
   );
@@ -303,82 +247,8 @@ const styles = StyleSheet.create({
   toggleTextActive: {
     color: colors.onPrimary.light,
   },
-  list: {
-    flex: 1,
-  },
-  listContent: {
-    padding: spacing.md,
-  },
-  roomCard: {
-    backgroundColor: colors.surface.light,
-    borderRadius: radius.lg,
-    padding: spacing.md,
-    marginBottom: spacing.sm,
-    borderWidth: 1,
-    borderColor: colors.outlineVariant.light,
-    elevation: 1,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.1,
-    shadowRadius: 2,
-  },
-  roomHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: spacing.sm,
-  },
-  roomName: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: colors.onSurface.light,
-    flex: 1,
-    marginRight: spacing.sm,
-  },
-  distanceBadge: {
-    backgroundColor: colors.primaryContainer.light,
-    paddingHorizontal: spacing.sm,
-    paddingVertical: spacing.xs,
-    borderRadius: radius.full,
-  },
-  distanceText: {
-    color: colors.onPrimaryContainer.light,
-    fontSize: 12,
-    fontWeight: '500',
-  },
-  roomDescription: {
-    fontSize: 14,
-    color: colors.onSurfaceVariant.light,
-    marginBottom: spacing.sm,
-    lineHeight: 20,
-  },
-  roomFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  onlineDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: colors.online,
-    marginRight: spacing.sm,
-  },
-  memberCount: {
-    fontSize: 14,
-    color: colors.onSurfaceVariant.light,
-  },
   mapContainer: {
     flex: 1,
-  },
-  emptyState: {
-    alignItems: 'center',
-    paddingVertical: spacing.xxl,
-  },
-  emptyText: {
-    color: colors.onSurfaceVariant.light,
-    textAlign: 'center',
-    fontSize: 14,
-    lineHeight: 20,
   },
 });
 

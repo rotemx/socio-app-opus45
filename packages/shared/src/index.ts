@@ -2,6 +2,7 @@
 export * from './stores/authStore';
 export * from './stores/chatStore';
 export * from './stores/roomStore';
+export * from './stores/settingsStore';
 
 // Hooks
 export * from './hooks/useAuth';
@@ -13,3 +14,6 @@ export * from './hooks/useRoomDiscovery';
 export * from './services/api';
 export * from './services/auth';
 export * from './services/websocket';
+
+// Utils
+export * from './utils';
