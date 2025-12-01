@@ -5,12 +5,13 @@ This file will define the tasks for CLAUDE CODE and will be used as instructions
 <PROCESS>
 
 Claude will: 
-1. Implement the next ticket in Linear according to the numerical order (SOC-67, SOC-68, SOC-69, and then SOC-70 for example)
-2. Run the Code Review process
-3. Mark the ticket as Done.
-4. Summarize the ticket in the log file CLAUSE_TASKS.log
-5. Clear its context window to prepare for the next ticket.
-6. Repeat steps 1-5 until all tickets are done. 
+1. read all relevant MD files and explore the repo to get a deep understanding of the project.
+2. Implement the next ticket in Linear according to the numerical order (SOC-67, SOC-68, SOC-69, and then SOC-70 for example)
+3. Run the Code Review process
+4. Mark the ticket as Done.
+5. Summarize the ticket in the log file CLAUSE_TASKS.log
+6. Clear its context window to prepare for the next ticket.
+7. Repeat steps 1–6 until all tickets are done. 
 
 </PROCESS>
 
@@ -32,8 +33,8 @@ then you should clear its context window to prepare for the next ticket.
 
 <REVIEW_PROCESS>
 after implementing each ticket, you will
-1, check thoroughly and deeply for potential bugs, problems, security or privacy issues in all uncommitted files.
+1. check thoroughly and deeply for potential bugs, problems, security, or privacy issues in all uncommitted files.
 2. fix all issues.
-3. run coderabbit 4 fix all issues. if coderabbit is rate limited, should wait until it is free and run again. 
-4. repeat steps 1-4 up to 10 iterations or until no issues found
+3. run CodeRabbit 4 fix all issues. if CodeRabbit is rate-limited, should wait until it is free and run again. 
+4. repeat steps 1-4 up to 10 iterations or until no issues are found.
 </REVIEW_PROCESS>
