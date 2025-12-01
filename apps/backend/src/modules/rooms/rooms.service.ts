@@ -13,7 +13,10 @@ import {
   type UpdateRoomDto,
   type RoomDiscoveryDto,
   type UpdateMemberRoleDto,
+  type NearbyRoomsDto,
+  type NearbyRoomResponse,
 } from './dto/rooms.dto';
+import { Prisma } from '@prisma/client';
 
 /**
  * GeoJSON Point structure for location data
@@ -98,14 +101,15 @@ export class RoomsService {
   }
 
   /**
-   * Find nearby rooms using PostGIS
-   * Uses raw SQL for spatial queries
+   * Find nearby rooms (legacy method without spatial queries)
+   *
+   * Note: This method uses standard Prisma queries without PostGIS.
+   * @deprecated Use findNearbyRoomsPostGIS instead for proper spatial queries
    */
   async findNearbyRooms(dto: RoomDiscoveryDto) {
     this.logger.log(`Finding rooms near: ${dto.latitude}, ${dto.longitude}`);
 
-    // TODO: Implement PostGIS spatial query
-    // For now, return basic query without spatial filtering
+    // Legacy method - use findNearbyRoomsPostGIS for better performance
     const rooms = await this.prisma.chatRoom.findMany({
       where: {
         isActive: true,
@@ -127,6 +131,214 @@ export class RoomsService {
     return {
       rooms,
       cursor: rooms.length === dto.limit ? rooms[rooms.length - 1]?.id : null,
+    };
+  }
+
+  /**
+   * Find nearby rooms using PostGIS spatial queries
+   *
+   * Uses ST_DWithin for efficient radius filtering and ST_Distance for sorting.
+   * Prefers computed_location (dynamic) over static location.
+   *
+   * @param dto - Query parameters (lat, lng, radius, tags, limit, cursor)
+   * @returns Rooms sorted by distance with member count
+   */
+  async findNearbyRoomsPostGIS(dto: NearbyRoomsDto): Promise<{
+    rooms: NearbyRoomResponse[];
+    cursor: string | null;
+  }> {
+    // Log with reduced precision for privacy (2 decimal places = ~1km accuracy)
+    this.logger.log(`Finding nearby rooms: lat=${dto.lat.toFixed(2)}, lng=${dto.lng.toFixed(2)}, radius=${dto.radius}m`);
+
+    // Parse composite cursor: "distance_id" format for deterministic pagination
+    let cursorDistance: number | null = null;
+    let cursorId: string | null = null;
+    if (dto.cursor) {
+      const separatorIndex = dto.cursor.indexOf('_');
+      if (separatorIndex > 0) {
+        cursorDistance = parseFloat(dto.cursor.substring(0, separatorIndex));
+        cursorId = dto.cursor.substring(separatorIndex + 1);
+        if (isNaN(cursorDistance)) {
+          cursorDistance = null;
+          cursorId = null;
+        }
+      }
+    }
+
+    // Build the raw SQL query for PostGIS spatial search
+    // Uses COALESCE to prefer computed_location over static location
+    type RoomQueryResult = {
+      id: string;
+      name: string;
+      description: string | null;
+      avatar_url: string | null;
+      location: unknown;
+      computed_location: unknown;
+      radius_meters: number;
+      is_public: boolean;
+      tags: string[];
+      created_at: Date;
+      last_activity_at: Date;
+      member_count: bigint;
+      distance_meters: number;
+      creator_id: string | null;
+      creator_username: string | null;
+      creator_display_name: string | null;
+      creator_avatar_url: string | null;
+    };
+
+    let result: RoomQueryResult[];
+    try {
+      result = await this.prisma.$queryRaw<RoomQueryResult[]>`
+        WITH room_locations AS (
+          SELECT
+            r.id,
+            r.name,
+            r.description,
+            r.avatar_url,
+            r.location,
+            r.computed_location,
+            r.radius_meters,
+            r.is_public,
+            r.tags,
+            r.created_at,
+            r.last_activity_at,
+            r.creator_id,
+            -- Use computed_location if available, otherwise use static location
+            COALESCE(
+              r.computed_location->>'coordinates',
+              r.location->>'coordinates'
+            ) AS coords_json
+          FROM chat_rooms r
+          WHERE r.is_active = true
+            AND r.is_public = true
+            -- Ensure room has valid location data (validation moved from JS to SQL)
+            AND (r.computed_location IS NOT NULL OR r.location IS NOT NULL)
+            ${dto.tags && dto.tags.length > 0 ? Prisma.sql`AND r.tags && ${dto.tags}::text[]` : Prisma.empty}
+        ),
+        rooms_with_distance AS (
+          SELECT
+            rl.*,
+            ST_Distance(
+              ST_SetSRID(
+                ST_MakePoint(
+                  (rl.coords_json::json->>0)::float,
+                  (rl.coords_json::json->>1)::float
+                ),
+                4326
+              )::geography,
+              ST_SetSRID(ST_MakePoint(${dto.lng}, ${dto.lat}), 4326)::geography
+            ) AS distance_meters
+          FROM room_locations rl
+          WHERE rl.coords_json IS NOT NULL
+            -- Use ST_DWithin for spatial index optimization (early filtering)
+            AND ST_DWithin(
+              ST_SetSRID(
+                ST_MakePoint(
+                  (rl.coords_json::json->>0)::float,
+                  (rl.coords_json::json->>1)::float
+                ),
+                4326
+              )::geography,
+              ST_SetSRID(ST_MakePoint(${dto.lng}, ${dto.lat}), 4326)::geography,
+              ${dto.radius}
+            )
+        )
+        SELECT
+          rwd.id,
+          rwd.name,
+          rwd.description,
+          rwd.avatar_url,
+          rwd.location,
+          rwd.computed_location,
+          rwd.radius_meters,
+          rwd.is_public,
+          rwd.tags,
+          rwd.created_at,
+          rwd.last_activity_at,
+          rwd.distance_meters,
+          rwd.creator_id,
+          u.username AS creator_username,
+          u.display_name AS creator_display_name,
+          u.avatar_url AS creator_avatar_url,
+          (SELECT COUNT(*) FROM room_members rm WHERE rm.room_id = rwd.id) AS member_count
+        FROM rooms_with_distance rwd
+        LEFT JOIN users u ON rwd.creator_id = u.id
+        ${cursorDistance !== null && cursorId ? Prisma.sql`WHERE (rwd.distance_meters > ${cursorDistance} OR (rwd.distance_meters = ${cursorDistance} AND rwd.id > ${cursorId}::uuid))` : Prisma.empty}
+        ORDER BY rwd.distance_meters ASC, rwd.id ASC
+        LIMIT ${dto.limit + 1}
+      `;
+    } catch (error) {
+      this.logger.error(
+        `PostGIS query failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      );
+      throw error;
+    }
+
+    // Check if there are more results (for cursor pagination)
+    const hasMore = result.length > dto.limit;
+    const rooms = hasMore ? result.slice(0, dto.limit) : result;
+
+    // Transform the raw result to the response format, filtering out invalid locations
+    const transformedRooms: NearbyRoomResponse[] = rooms
+      .map((room) => {
+        // Parse location from JSON - always use 'Point' type for GeoJSON
+        const rawLocation = (room.computed_location ?? room.location) as {
+          type: string;
+          coordinates: [number, number];
+        } | null;
+
+        // Validate location structure
+        if (!rawLocation?.coordinates || rawLocation.coordinates.length !== 2) {
+          this.logger.warn(`Room ${room.id} missing valid location, skipping`);
+          return null;
+        }
+
+        const location: { type: 'Point'; coordinates: [number, number] } = {
+          type: 'Point',
+          coordinates: rawLocation.coordinates,
+        };
+
+        return {
+          id: room.id,
+          name: room.name,
+          description: room.description,
+          avatarUrl: room.avatar_url,
+          location,
+          radiusMeters: room.radius_meters,
+          isPublic: room.is_public,
+          tags: room.tags,
+          createdAt: room.created_at,
+          lastActivityAt: room.last_activity_at,
+          memberCount: Number(room.member_count),
+          distanceMeters: Math.round(room.distance_meters),
+          creator: room.creator_id
+            ? {
+                id: room.creator_id,
+                username: room.creator_username ?? 'unknown',
+                displayName: room.creator_display_name,
+                avatarUrl: room.creator_avatar_url,
+              }
+            : null,
+        };
+      })
+      .filter((room): room is NearbyRoomResponse => room !== null);
+
+    this.logger.debug(`Found ${transformedRooms.length} nearby rooms`);
+
+    // Generate composite cursor using raw distance (not rounded) for accurate pagination
+    // Find the raw room data for the last transformed room
+    const lastTransformedRoom = transformedRooms[transformedRooms.length - 1];
+    const lastRawRoom = lastTransformedRoom
+      ? rooms.find((r) => r.id === lastTransformedRoom.id)
+      : null;
+    const nextCursor = hasMore && lastRawRoom
+      ? `${lastRawRoom.distance_meters}_${lastRawRoom.id}`
+      : null;
+
+    return {
+      rooms: transformedRooms,
+      cursor: nextCursor,
     };
   }
 

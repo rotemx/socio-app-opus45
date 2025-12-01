@@ -7,8 +7,9 @@ import {
   type RoomDiscoveryDto,
   type JoinRoomDto,
   type UpdateMemberRoleDto,
+  type NearbyRoomsDto,
 } from './dto/rooms.dto';
-import { CurrentUser } from '../../common/decorators';
+import { CurrentUser, RateLimit } from '../../common/decorators';
 import { type JwtPayload } from '../auth/dto/auth.dto';
 
 /**
@@ -20,12 +21,28 @@ export class RoomsController {
   constructor(private readonly roomsService: RoomsService) {}
 
   /**
-   * Discover nearby rooms
+   * Discover nearby rooms (legacy endpoint without PostGIS)
    * GET /rooms/discover
+   *
+   * @deprecated Use GET /rooms/nearby for better performance with PostGIS spatial queries
    */
   @Get('discover')
+  @RateLimit({ limit: 100, windowSeconds: 60, keyPrefix: 'rooms:discovery' })
   async discoverRooms(@Query() query: RoomDiscoveryDto) {
     return this.roomsService.findNearbyRooms(query);
+  }
+
+  /**
+   * Find nearby rooms using PostGIS spatial queries
+   * GET /rooms/nearby
+   * Returns rooms within specified radius, sorted by distance
+   *
+   * Note: Shares rate limit with /discover endpoint (100 req/min total)
+   */
+  @Get('nearby')
+  @RateLimit({ limit: 100, windowSeconds: 60, keyPrefix: 'rooms:discovery' })
+  async findNearbyRooms(@Query() query: NearbyRoomsDto) {
+    return this.roomsService.findNearbyRoomsPostGIS(query);
   }
 
   /**
