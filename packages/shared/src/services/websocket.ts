@@ -36,8 +36,18 @@ export type TokenRefreshError = z.infer<typeof tokenRefreshErrorSchema>;
 type TokenRefreshHandler = (tokens: TokenRefreshResult) => void;
 type TokenRefreshErrorHandler = (error: TokenRefreshError) => void;
 
-// Safe environment variable access
-const WS_URL = (typeof process !== 'undefined' && process.env?.WS_URL) || 'http://localhost:3000';
+// Safe environment variable access for cross-platform compatibility
+const getEnvVar = (key: string): string | undefined => {
+  try {
+    return (globalThis as Record<string, unknown>).process !== undefined
+      ? ((globalThis as Record<string, unknown>).process as { env: Record<string, string | undefined> }).env[key]
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const WS_URL = getEnvVar('WS_URL') || 'http://localhost:3000';
 
 class WebSocketService {
   private socket: Socket | null = null;
