@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -7,9 +7,10 @@ import {
   SafeAreaView,
   ActivityIndicator,
 } from 'react-native';
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation, type NavigationProp } from '@react-navigation/native';
 import { colors, spacing, radius } from '@socio/ui';
 import { useLocation } from '../../hooks';
+import type { RootStackParamList } from '../../navigation/types';
 
 /**
  * LocationPermissionScreen - Pre-permission primer screen
@@ -19,7 +20,7 @@ import { useLocation } from '../../hooks';
  * Provides deep link to device settings for denied/blocked state.
  */
 export function LocationPermissionScreen(): React.JSX.Element {
-  const navigation = useNavigation();
+  const navigation = useNavigation<NavigationProp<RootStackParamList>>();
   const {
     permissionStatus,
     isLoading,
@@ -30,6 +31,16 @@ export function LocationPermissionScreen(): React.JSX.Element {
 
   const [isRequesting, setIsRequesting] = useState(false);
 
+  // If permission is already granted, navigate away immediately
+  useEffect(() => {
+    if (permissionStatus === 'granted' || permissionStatus === 'limited') {
+      navigation.reset({
+        index: 0,
+        routes: [{ name: 'Home' }],
+      });
+    }
+  }, [permissionStatus, navigation]);
+
   /**
    * Handle permission request
    */
@@ -37,22 +48,15 @@ export function LocationPermissionScreen(): React.JSX.Element {
     setIsRequesting(true);
 
     try {
-      const status = await requestPermission();
-
-      if (status === 'granted' || status === 'limited') {
-        // Permission granted, navigate to main app
-        navigation.reset({
-          index: 0,
-          routes: [{ name: 'Home' }],
-        });
-      }
+      await requestPermission();
+      // Navigation is handled by useEffect when permissionStatus changes
     } catch (err) {
       // Error is already handled by useLocation hook
       console.error('Failed to request location permission:', err);
     } finally {
       setIsRequesting(false);
     }
-  }, [requestPermission, navigation]);
+  }, [requestPermission]);
 
   /**
    * Handle open settings for blocked/denied permissions

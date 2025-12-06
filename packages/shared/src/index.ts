@@ -8,7 +8,13 @@ export * from './stores/settingsStore';
 export * from './hooks/useAuth';
 export * from './hooks/useChat';
 export * from './hooks/useChatHistory';
+export * from './hooks/useRoomDetails';
+export * from './hooks/useRoomMembers';
+export * from './hooks/useSendMessage';
 export * from './hooks/useRoomDiscovery';
+
+// Providers
+export * from './providers';
 
 // Services
 export * from './services/api';

@@ -1,13 +1,22 @@
 import type { ApiResponse } from '@socio/types';
+import { z } from 'zod';
+
+// Zod schema for process-like object
+const ProcessEnvSchema = z.object({
+  process: z.object({
+    env: z.record(z.string(), z.string().optional()),
+  }),
+});
 
 // Base URL for API - uses process.env which bundlers (Vite, Metro) can replace
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const getEnvVar = (key: string): string | undefined => {
   try {
     // Access process.env safely for both Node.js and bundled environments
-    return (globalThis as Record<string, unknown>).process !== undefined
-      ? ((globalThis as Record<string, unknown>).process as { env: Record<string, string | undefined> }).env[key]
-      : undefined;
+    const result = ProcessEnvSchema.safeParse(globalThis);
+    if (result.success) {
+      return result.data.process.env[key];
+    }
+    return undefined;
   } catch {
     return undefined;
   }

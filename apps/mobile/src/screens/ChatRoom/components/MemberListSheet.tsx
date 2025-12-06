@@ -107,7 +107,7 @@ function MemberItem({ member, onPress }: MemberItemProps): React.JSX.Element {
  * MemberListSheet - Bottom sheet with scrollable member list
  *
  * Features:
- * - Full member list with search
+ * - Full member list sorted by role
  * - Online status indicators
  * - Role badges (Creator, Admin, Mod)
  * - Tap member for profile

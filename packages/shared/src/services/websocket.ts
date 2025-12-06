@@ -36,12 +36,22 @@ export type TokenRefreshError = z.infer<typeof tokenRefreshErrorSchema>;
 type TokenRefreshHandler = (tokens: TokenRefreshResult) => void;
 type TokenRefreshErrorHandler = (error: TokenRefreshError) => void;
 
+// Zod schema for process-like object
+const ProcessEnvSchema = z.object({
+  process: z.object({
+    env: z.record(z.string(), z.string().optional()),
+  }),
+});
+
 // Safe environment variable access for cross-platform compatibility
 const getEnvVar = (key: string): string | undefined => {
   try {
-    return (globalThis as Record<string, unknown>).process !== undefined
-      ? ((globalThis as Record<string, unknown>).process as { env: Record<string, string | undefined> }).env[key]
-      : undefined;
+    // Access process.env safely for both Node.js and bundled environments
+    const result = ProcessEnvSchema.safeParse(globalThis);
+    if (result.success) {
+      return result.data.process.env[key];
+    }
+    return undefined;
   } catch {
     return undefined;
   }
