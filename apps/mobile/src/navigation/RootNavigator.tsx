@@ -18,6 +18,9 @@ import {
   PhoneVerificationScreen,
 } from '../screens/Auth';
 
+// Permission Screens
+import { LocationPermissionScreen } from '../screens/Permissions';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 /**
@@ -88,6 +91,14 @@ export function RootNavigator(): React.JSX.Element {
             component={SettingsScreen}
             options={{
               title: 'Settings',
+            }}
+          />
+          <Stack.Screen
+            name="LocationPermission"
+            component={LocationPermissionScreen}
+            options={{
+              headerShown: false,
+              presentation: 'fullScreenModal',
             }}
           />
         </>

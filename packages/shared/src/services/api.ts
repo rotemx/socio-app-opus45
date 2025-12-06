@@ -1,8 +1,19 @@
 import type { ApiResponse } from '@socio/types';
 
 // Base URL for API - uses process.env which bundlers (Vite, Metro) can replace
-const API_BASE_URL =
-  (typeof process !== 'undefined' && process.env?.API_URL) || 'http://localhost:3000';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+const getEnvVar = (key: string): string | undefined => {
+  try {
+    // Access process.env safely for both Node.js and bundled environments
+    return (globalThis as Record<string, unknown>).process !== undefined
+      ? ((globalThis as Record<string, unknown>).process as { env: Record<string, string | undefined> }).env[key]
+      : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const API_BASE_URL = getEnvVar('API_URL') || 'http://localhost:3000';
 
 interface RequestConfig {
   params?: Record<string, string | number | undefined>;

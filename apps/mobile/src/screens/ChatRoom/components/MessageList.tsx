@@ -175,7 +175,7 @@ export function MessageList({
         <View style={[styles.messageContainer, isOwn && styles.ownMessage]}>
           <MessageBubble
             message={message}
-            isOwn={isOwn}
+            isSent={isOwn}
             showTimestamp
           />
           {isOptimistic && (

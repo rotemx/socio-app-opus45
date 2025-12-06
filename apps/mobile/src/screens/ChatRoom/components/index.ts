@@ -4,3 +4,6 @@ export { ScrollToBottomButton, type ScrollToBottomButtonProps } from './ScrollTo
 export { MessageSkeleton, MessageSkeletonList, type MessageSkeletonProps } from './MessageSkeleton';
 export { NewMessageIndicator, type NewMessageIndicatorProps } from './NewMessageIndicator';
 export { EmptyState } from './EmptyState';
+export { RoomHeader, type RoomHeaderProps } from './RoomHeader';
+export { RoomInfoSheet, type RoomInfoSheetProps } from './RoomInfoSheet';
+export { MemberListSheet, type MemberListSheetProps } from './MemberListSheet';

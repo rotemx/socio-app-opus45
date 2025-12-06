@@ -20,6 +20,9 @@ export type RootStackParamList = {
   Register: undefined;
   ForgotPassword: undefined;
   PhoneVerification: { mode: 'login' | 'register' } | undefined;
+
+  // Permission screens
+  LocationPermission: undefined;
 };
 
 /**
