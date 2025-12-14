@@ -24,9 +24,15 @@ const getEnvVar = (key: string): string | undefined => {
 
 const API_BASE_URL = getEnvVar('API_URL') || 'http://localhost:3000';
 
+/**
+ * Default request timeout in milliseconds (30 seconds)
+ */
+const DEFAULT_TIMEOUT_MS = 30000;
+
 interface RequestConfig {
   params?: Record<string, string | number | undefined>;
   headers?: Record<string, string>;
+  timeoutMs?: number;
 }
 
 class ApiService {
@@ -66,82 +72,156 @@ class ApiService {
     return headers;
   }
 
+  /**
+   * Create an AbortController with timeout
+   */
+  private createAbortController(timeoutMs?: number): { controller: AbortController; timeoutId: ReturnType<typeof setTimeout> } {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    return { controller, timeoutId };
+  }
+
   async get<T>(endpoint: string, config?: RequestConfig): Promise<T> {
     const url = this.buildUrl(endpoint, config?.params);
-    const response = await fetch(url, {
-      method: 'GET',
-      headers: this.getHeaders(config?.headers),
-    });
+    const { controller, timeoutId } = this.createAbortController(config?.timeoutMs);
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+    try {
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: this.getHeaders(config?.headers),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data: ApiResponse<T> = await response.json();
+      if (!data.success || data.data === undefined) {
+        throw new Error(data.error?.message || 'Unknown error');
+      }
+
+      return data.data;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success || !data.data) {
-      throw new Error(data.error?.message || 'Unknown error');
-    }
-
-    return data.data;
   }
 
   async post<T>(endpoint: string, body: unknown, config?: RequestConfig): Promise<T> {
     const url = this.buildUrl(endpoint, config?.params);
-    const response = await fetch(url, {
-      method: 'POST',
-      headers: this.getHeaders(config?.headers),
-      body: JSON.stringify(body),
-    });
+    const { controller, timeoutId } = this.createAbortController(config?.timeoutMs);
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+    try {
+      const response = await fetch(url, {
+        method: 'POST',
+        headers: this.getHeaders(config?.headers),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data: ApiResponse<T> = await response.json();
+      if (!data.success || data.data === undefined) {
+        throw new Error(data.error?.message || 'Unknown error');
+      }
+
+      return data.data;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success || !data.data) {
-      throw new Error(data.error?.message || 'Unknown error');
-    }
-
-    return data.data;
   }
 
   async put<T>(endpoint: string, body: unknown, config?: RequestConfig): Promise<T> {
     const url = this.buildUrl(endpoint, config?.params);
-    const response = await fetch(url, {
-      method: 'PUT',
-      headers: this.getHeaders(config?.headers),
-      body: JSON.stringify(body),
-    });
+    const { controller, timeoutId } = this.createAbortController(config?.timeoutMs);
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+    try {
+      const response = await fetch(url, {
+        method: 'PUT',
+        headers: this.getHeaders(config?.headers),
+        body: JSON.stringify(body),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      const data: ApiResponse<T> = await response.json();
+      if (!data.success || data.data === undefined) {
+        throw new Error(data.error?.message || 'Unknown error');
+      }
+
+      return data.data;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success || !data.data) {
-      throw new Error(data.error?.message || 'Unknown error');
-    }
-
-    return data.data;
   }
 
-  async delete<T>(endpoint: string, config?: RequestConfig): Promise<T> {
+  /**
+   * Delete a resource at the given endpoint
+   * @param endpoint - API endpoint to delete
+   * @param config - Optional request configuration
+   * @returns Promise resolving to the response data, or undefined for 204 No Content responses
+   * @remarks When the endpoint returns 204 No Content, use delete<void>() and expect undefined
+   */
+  async delete<T = void>(endpoint: string, config?: RequestConfig): Promise<T | undefined> {
     const url = this.buildUrl(endpoint, config?.params);
-    const response = await fetch(url, {
-      method: 'DELETE',
-      headers: this.getHeaders(config?.headers),
-    });
+    const { controller, timeoutId } = this.createAbortController(config?.timeoutMs);
 
-    if (!response.ok) {
-      throw new Error(`API Error: ${response.status}`);
+    try {
+      const response = await fetch(url, {
+        method: 'DELETE',
+        headers: this.getHeaders(config?.headers),
+        signal: controller.signal,
+      });
+
+      if (!response.ok) {
+        throw new Error(`API Error: ${response.status}`);
+      }
+
+      // Handle 204 No Content or empty responses
+      if (response.status === 204 || response.headers.get('content-length') === '0') {
+        return undefined;
+      }
+
+      const text = await response.text();
+      if (!text) {
+        return undefined;
+      }
+
+      const data: ApiResponse<T> = JSON.parse(text);
+      if (!data.success || data.data === undefined) {
+        throw new Error(data.error?.message || 'Unknown error');
+      }
+
+      return data.data;
+    } catch (error) {
+      if (error instanceof Error && error.name === 'AbortError') {
+        throw new Error('Request timeout');
+      }
+      throw error;
+    } finally {
+      clearTimeout(timeoutId);
     }
-
-    const data: ApiResponse<T> = await response.json();
-    if (!data.success || !data.data) {
-      throw new Error(data.error?.message || 'Unknown error');
-    }
-
-    return data.data;
   }
 }
 

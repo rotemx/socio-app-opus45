@@ -104,6 +104,20 @@ export const authService = {
   },
 
   /**
+   * Request password reset email
+   */
+  async requestPasswordReset(email: string): Promise<{ success: boolean; message: string }> {
+    return api.post<{ success: boolean; message: string }>('/auth/password/reset-request', { email });
+  },
+
+  /**
+   * Reset password with token
+   */
+  async resetPassword(token: string, newPassword: string): Promise<{ success: boolean; message: string }> {
+    return api.post<{ success: boolean; message: string }>('/auth/password/reset', { token, newPassword });
+  },
+
+  /**
    * Set the access token for API requests
    */
   setAccessToken(token: string | null): void {

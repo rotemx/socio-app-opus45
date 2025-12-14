@@ -2,6 +2,7 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '@socio/shared';
 import type { RootStackParamList } from './types';
+import { useOnboarding } from '../hooks';
 
 // Main Screens
 import HomeScreen from '../screens/Home/HomeScreen';
@@ -21,17 +22,21 @@ import {
 // Permission Screens
 import { LocationPermissionScreen } from '../screens/Permissions';
 
+// Onboarding Screens
+import { WelcomeCarousel, ProfileSetupScreen } from '../screens/Onboarding';
+
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
 /**
  * Root navigation stack
- * Handles all main app navigation including authentication flow
+ * Handles all main app navigation including authentication and onboarding flow
  */
 export function RootNavigator(): React.JSX.Element {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated, isLoading: authLoading } = useAuth();
+  const { hasCompletedOnboarding, isLoading: onboardingLoading } = useOnboarding();
 
-  // Show loading screen while checking auth state
-  if (isLoading) {
+  // Show loading screen while checking auth and onboarding state
+  if (authLoading || onboardingLoading) {
     return (
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={HomeScreen} />
@@ -39,9 +44,17 @@ export function RootNavigator(): React.JSX.Element {
     );
   }
 
+  // Determine initial route based on onboarding and auth state
+  const getInitialRouteName = (): keyof RootStackParamList => {
+    if (!hasCompletedOnboarding) {
+      return 'Onboarding';
+    }
+    return isAuthenticated ? 'Home' : 'Login';
+  };
+
   return (
     <Stack.Navigator
-      initialRouteName={isAuthenticated ? 'Home' : 'Login'}
+      initialRouteName={getInitialRouteName()}
       screenOptions={{
         headerShown: true,
         headerTintColor: '#d946ef', // primary-500
@@ -54,6 +67,28 @@ export function RootNavigator(): React.JSX.Element {
         animation: 'slide_from_right',
       }}
     >
+      {/* Onboarding screens - shown first for new users */}
+      {!hasCompletedOnboarding && (
+        <>
+          <Stack.Screen
+            name="Onboarding"
+            component={WelcomeCarousel}
+            options={{
+              headerShown: false,
+              animation: 'fade',
+            }}
+          />
+          <Stack.Screen
+            name="ProfileSetup"
+            component={ProfileSetupScreen}
+            options={{
+              headerShown: false,
+              animation: 'slide_from_right',
+            }}
+          />
+        </>
+      )}
+
       {isAuthenticated ? (
         // Authenticated screens
         <>

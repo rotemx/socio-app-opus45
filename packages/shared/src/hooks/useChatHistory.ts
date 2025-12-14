@@ -1,7 +1,34 @@
 import { useInfiniteQuery, useQueryClient, type InfiniteData } from '@tanstack/react-query';
 import { useMemo, useCallback } from 'react';
+import { z } from 'zod';
 import { api } from '../services/api';
 import type { Message, CursorPaginatedResponse } from '@socio/types';
+
+/**
+ * Zod schema for Message validation
+ */
+const MessageSchema = z.object({
+  id: z.string(),
+  roomId: z.string(),
+  senderId: z.string(),
+  content: z.string(),
+  contentType: z.enum(['text', 'image', 'video', 'audio', 'file', 'location']),
+  metadata: z.record(z.unknown()).optional(),
+  replyToId: z.string().optional(),
+  isEdited: z.boolean(),
+  isDeleted: z.boolean(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
+/**
+ * Zod schema for cursor paginated response
+ */
+const CursorPaginatedMessagesSchema = z.object({
+  items: z.array(MessageSchema),
+  hasMore: z.boolean(),
+  cursor: z.string().optional(),
+});
 
 /**
  * Query key factory for chat messages
@@ -51,7 +78,11 @@ export function useChatHistory(roomId: string, options?: { pageSize?: number }) 
           },
         }
       );
-      return response;
+      const validated = CursorPaginatedMessagesSchema.safeParse(response);
+      if (!validated.success) {
+        throw new Error(`Invalid messages data: ${validated.error.message}`);
+      }
+      return validated.data as CursorPaginatedResponse<Message>;
     },
     getNextPageParam: (lastPage) => (lastPage.hasMore ? lastPage.cursor : undefined),
     initialPageParam: undefined,

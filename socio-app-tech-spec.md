@@ -1004,9 +1004,12 @@ jobs:
 
 ---
 
-## Jira work breakdown structure
+## Work breakdown structure
 
-### Epic hierarchy
+> **Note:** Active task tracking is now managed in the `TASKS/` folder with status embedded in filenames.
+> See `TASKS/ROADMAP.md` for current project status.
+
+### Epic hierarchy (Reference)
 
 ```
 📦 SOCIO-1: MVP Foundation (Sprint 1-4)

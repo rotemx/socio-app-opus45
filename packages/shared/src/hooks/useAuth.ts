@@ -3,17 +3,24 @@ import type { LoginRequest, RegisterRequest, User, AuthTokens } from '@socio/typ
 import { useAuthStore } from '../stores/authStore';
 import { authService } from '../services/auth';
 
+export interface AuthResult {
+  user: User;
+  tokens: AuthTokens;
+}
+
 export interface UseAuthReturn {
   user: User | null;
   tokens: AuthTokens | null;
   isAuthenticated: boolean;
   isLoading: boolean;
   error: string | null;
-  login: (request: LoginRequest) => Promise<void>;
-  register: (request: RegisterRequest & { password: string }) => Promise<void>;
-  oauthLogin: (provider: 'google' | 'apple', providerToken: string) => Promise<void>;
+  login: (request: LoginRequest) => Promise<AuthResult>;
+  register: (request: RegisterRequest & { password: string }) => Promise<AuthResult>;
+  oauthLogin: (provider: 'google' | 'apple', providerToken: string) => Promise<AuthResult>;
   sendPhoneOtp: (phone: string) => Promise<void>;
-  verifyPhoneOtp: (phone: string, code: string) => Promise<void>;
+  verifyPhoneOtp: (phone: string, code: string) => Promise<AuthResult>;
+  requestPasswordReset: (email: string) => Promise<void>;
+  resetPassword: (token: string, newPassword: string) => Promise<void>;
   logout: () => Promise<void>;
   clearError: () => void;
 }
@@ -23,12 +30,13 @@ export function useAuth(): UseAuthReturn {
   const { user, tokens, isAuthenticated, isLoading, error, setAuth, setLoading, setError } = store;
 
   const login = useCallback(
-    async (request: LoginRequest) => {
+    async (request: LoginRequest): Promise<AuthResult> => {
       setLoading(true);
       setError(null);
       try {
         const response = await authService.login(request);
         setAuth(response.user, response.tokens);
+        return { user: response.user, tokens: response.tokens };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Login failed';
         setError(message);
@@ -41,12 +49,13 @@ export function useAuth(): UseAuthReturn {
   );
 
   const register = useCallback(
-    async (request: RegisterRequest & { password: string }) => {
+    async (request: RegisterRequest & { password: string }): Promise<AuthResult> => {
       setLoading(true);
       setError(null);
       try {
         const response = await authService.register(request);
         setAuth(response.user, response.tokens);
+        return { user: response.user, tokens: response.tokens };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Registration failed';
         setError(message);
@@ -59,12 +68,13 @@ export function useAuth(): UseAuthReturn {
   );
 
   const oauthLogin = useCallback(
-    async (provider: 'google' | 'apple', providerToken: string) => {
+    async (provider: 'google' | 'apple', providerToken: string): Promise<AuthResult> => {
       setLoading(true);
       setError(null);
       try {
         const response = await authService.oauthLogin(provider, providerToken);
         setAuth(response.user, response.tokens);
+        return { user: response.user, tokens: response.tokens };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'OAuth login failed';
         setError(message);
@@ -94,12 +104,13 @@ export function useAuth(): UseAuthReturn {
   );
 
   const verifyPhoneOtp = useCallback(
-    async (phone: string, code: string) => {
+    async (phone: string, code: string): Promise<AuthResult> => {
       setLoading(true);
       setError(null);
       try {
         const response = await authService.verifyPhoneOtp(phone, code);
         setAuth(response.user, response.tokens);
+        return { user: response.user, tokens: response.tokens };
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Invalid verification code';
         setError(message);
@@ -109,6 +120,40 @@ export function useAuth(): UseAuthReturn {
       }
     },
     [setAuth, setLoading, setError]
+  );
+
+  const requestPasswordReset = useCallback(
+    async (email: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        await authService.requestPasswordReset(email);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to send reset email';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setLoading, setError]
+  );
+
+  const resetPassword = useCallback(
+    async (token: string, newPassword: string) => {
+      setLoading(true);
+      setError(null);
+      try {
+        await authService.resetPassword(token, newPassword);
+      } catch (err) {
+        const message = err instanceof Error ? err.message : 'Failed to reset password';
+        setError(message);
+        throw err;
+      } finally {
+        setLoading(false);
+      }
+    },
+    [setLoading, setError]
   );
 
   const logout = useCallback(async () => {
@@ -138,6 +183,8 @@ export function useAuth(): UseAuthReturn {
     oauthLogin,
     sendPhoneOtp,
     verifyPhoneOtp,
+    requestPasswordReset,
+    resetPassword,
     logout,
     clearError,
   };

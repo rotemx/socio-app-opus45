@@ -1,10 +1,12 @@
+import { AppRouter } from '@/routes';
+import { useAuthInit } from '@/hooks';
+import '@/styles/index.css';
+
 function App() {
-  return (
-    <div>
-      <h1>Socio Web</h1>
-      <p>Location-based chat room discovery platform</p>
-    </div>
-  );
+  // Initialize auth state from localStorage on app start
+  useAuthInit();
+
+  return <AppRouter />;
 }
 
 export default App;

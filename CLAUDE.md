@@ -8,35 +8,65 @@ Location-based chat room discovery platform for the Tel Aviv LGBT community. Use
 
 ## AI Agent Instructions
 
-### Task Management with Linear (REQUIRED)
+### Task Management with Local Files (REQUIRED)
 
-**Always use MCP (Model Context Protocol) to connect to Linear for task management.**
+**All tasks are managed in the `TASKS/` folder with status embedded in filenames.**
 
-Before starting any work:
-1. **Fetch the ticket** using `mcp__linear__get_issue` with the ticket ID (e.g., `SOC-56`)
-2. **Read the ticket description** carefully - it contains acceptance criteria and AI agent prompts
-3. **Update ticket status** to "In Progress" using `mcp__linear__update_issue`
-4. **When complete**, update status to "Done"
+#### Structure Overview
 
 ```
-Available Linear MCP Tools:
-- mcp__linear__get_issue        # Get ticket details
-- mcp__linear__list_issues      # List tickets with filters
-- mcp__linear__update_issue     # Update ticket status/fields
-- mcp__linear__create_issue     # Create new tickets
-- mcp__linear__create_comment   # Add comments to tickets
-- mcp__linear__list_projects    # List projects
-- mcp__linear__list_teams       # List teams
+TASKS/
+├── ROADMAP.md                      # Central dashboard - START HERE
+├── P1-mvp-foundation/              # Project phase
+│   ├── E03-realtime-messaging/     # Epic folder
+│   │   ├── _epic.md                # Epic overview
+│   │   ├── SOC-62.done.md          # ✅ Completed task
+│   │   └── SOC-63.in-progress.md   # 🔄 Active task
+│   └── E07-onboarding/
+│       └── SOC-93.backlog.md       # ⬜ Pending task
+└── _templates/                     # Templates for new items
 ```
 
-### Workflow for Tickets
+#### File Naming Convention
 
-1. **Start**: Fetch ticket → Read requirements → Update status to "In Progress"
-2. **Plan**: Break down into subtasks, use TodoWrite for tracking
-3. **Implement**: Follow coding best practices below
-4. **Review**: Self-review for bugs, security, best practices
-5. **Test**: Run tests, ensure all pass
-6. **Complete**: Update Linear ticket to "Done"
+| Status | Filename Pattern | Example |
+|--------|------------------|---------|
+| Backlog | `SOC-##.backlog.md` | `SOC-93.backlog.md` |
+| In Progress | `SOC-##.in-progress.md` | `SOC-93.in-progress.md` |
+| Done | `SOC-##.done.md` | `SOC-93.done.md` |
+| Blocked | `SOC-##.blocked.md` | `SOC-93.blocked.md` |
+
+### Workflow for Tasks
+
+1. **READ** → `TASKS/ROADMAP.md` to understand project state
+2. **FIND** → Navigate to task: `TASKS/P#/E##/SOC-##.{status}.md`
+3. **START** → Rename file: `SOC-XX.backlog.md` → `SOC-XX.in-progress.md`
+4. **IMPLEMENT** → Follow coding best practices below
+5. **UPDATE** → Add implementation notes to task file
+6. **COMPLETE** → Rename file: `SOC-XX.in-progress.md` → `SOC-XX.done.md`
+7. **SYNC** → Update `ROADMAP.md` with new counts
+
+### Quick Commands
+
+```bash
+# Find task by ID
+find TASKS -name "SOC-93.*"
+
+# Start working on a task
+mv TASKS/P1-mvp-foundation/E07-onboarding/SOC-93.backlog.md \
+   TASKS/P1-mvp-foundation/E07-onboarding/SOC-93.in-progress.md
+
+# Complete a task
+mv TASKS/P1-mvp-foundation/E07-onboarding/SOC-93.in-progress.md \
+   TASKS/P1-mvp-foundation/E07-onboarding/SOC-93.done.md
+
+# List all in-progress tasks
+find TASKS -name "*.in-progress.md"
+
+# Count tasks by status
+find TASKS -name "*.done.md" | wc -l
+find TASKS -name "*.backlog.md" | wc -l
+```
 
 ---
 

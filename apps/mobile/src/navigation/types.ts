@@ -5,6 +5,10 @@ import type { NativeStackScreenProps } from '@react-navigation/native-stack';
  * Defines all screens and their params in the main navigation stack
  */
 export type RootStackParamList = {
+  // Onboarding
+  Onboarding: undefined;
+  ProfileSetup: undefined;
+
   // Main tabs
   Home: undefined;
   Discover: undefined;

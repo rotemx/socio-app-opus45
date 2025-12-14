@@ -14,10 +14,10 @@
 - [ ] CI/CD changes
 - [ ] Dependencies update
 
-## Related Issues
+## Related Tasks
 
-<!-- Link to related Jira tickets or GitHub issues -->
-<!-- Example: Closes SOCIO-XXX -->
+<!-- Link to related task files from TASKS/ folder -->
+<!-- Example: Implements SOC-93 (TASKS/P1-mvp-foundation/E07-onboarding/SOC-93.done.md) -->
 
 ## Changes Made
 

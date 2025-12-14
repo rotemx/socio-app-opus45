@@ -9,6 +9,20 @@ import { getQueryClient } from './QueryProvider';
 /**
  * Zod schemas for WebSocket event validation
  */
+const MessageSchema = z.object({
+  id: z.string(),
+  roomId: z.string(),
+  senderId: z.string(),
+  content: z.string(),
+  contentType: z.enum(['text', 'image', 'video', 'audio', 'file', 'location']),
+  metadata: z.record(z.unknown()).optional(),
+  replyToId: z.string().optional(),
+  isEdited: z.boolean(),
+  isDeleted: z.boolean(),
+  createdAt: z.coerce.date(),
+  updatedAt: z.coerce.date(),
+});
+
 const MessageDeletedEventSchema = z.object({
   roomId: z.string(),
   messageId: z.string(),
@@ -64,7 +78,14 @@ export const initializeQueryCacheHandlers = (): (() => void) => {
    * Handle new messages - add to cache instead of invalidating
    * This provides a smoother UX than refetching
    */
-  const unsubMessage = websocket.onMessage((message: Message) => {
+  const unsubMessage = websocket.onMessage((rawMessage: unknown) => {
+    const result = MessageSchema.safeParse(rawMessage);
+    if (!result.success) {
+      console.error('Invalid message event:', result.error.message);
+      return;
+    }
+
+    const message = result.data as Message;
     queryClient.setQueryData<InfiniteData<CursorPaginatedResponse<Message>>>(
       chatQueryKeys.room(message.roomId),
       (oldData) => {

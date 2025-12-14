@@ -19,6 +19,7 @@ export * from './providers';
 // Services
 export * from './services/api';
 export * from './services/auth';
+export * from './services/profile';
 export * from './services/websocket';
 
 // Utils
