@@ -1,12 +1,10 @@
-import { AppRouter } from '@/routes';
-import { useAuthInit } from '@/hooks';
-import '@/styles/index.css';
-
 function App() {
-  // Initialize auth state from localStorage on app start
-  useAuthInit();
-
-  return <AppRouter />;
+  return (
+    <div>
+      <h1>Socio App</h1>
+      <p>Web application placeholder</p>
+    </div>
+  );
 }
 
 export default App;
