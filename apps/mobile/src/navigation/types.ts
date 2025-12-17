@@ -8,6 +8,8 @@ export type RootStackParamList = {
   // Onboarding
   Onboarding: undefined;
   ProfileSetup: undefined;
+  InterestSelection: undefined;
+  NotificationPermission: undefined;
 
   // Main tabs
   Home: undefined;
@@ -18,6 +20,9 @@ export type RootStackParamList = {
   // Chat screens
   ChatRoom: { roomId: string; roomName: string };
   CreateRoom: undefined;
+
+  // Search
+  Search: undefined;
 
   // Auth screens
   Login: undefined;

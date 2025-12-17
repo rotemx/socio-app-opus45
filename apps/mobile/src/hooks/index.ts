@@ -6,4 +6,3 @@ export {
   type UseLocationState,
   type UseLocationActions,
 } from './useLocation';
-export { useOnboarding, type UseOnboardingReturn } from './useOnboarding';

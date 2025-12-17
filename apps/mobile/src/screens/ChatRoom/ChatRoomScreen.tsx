@@ -100,7 +100,7 @@ export function ChatRoomScreen({ route }: Props): React.JSX.Element {
 
   // Filter out current user from typing indicators
   const otherTypingUsers = typingUsers.filter(
-    (t) => t.userId !== currentUserId && t.isTyping
+    (t) => t.userId !== currentUserId
   );
 
   return (

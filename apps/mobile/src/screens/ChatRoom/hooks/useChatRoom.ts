@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useMemo, useRef } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { useChatHistory, useChat, websocket, useAuthStore } from '@socio/shared';
+import { useChatHistory, useChat, websocket, useAuthStore, type TypingUser } from '@socio/shared';
 import type { Message, CursorPaginatedResponse } from '@socio/types';
 import { useOptimisticMessages, type OptimisticMessage } from './useOptimisticMessages';
 
@@ -28,7 +28,7 @@ export interface UseChatRoomResult {
   /** Current user ID */
   currentUserId: string;
   /** Room typing indicators */
-  typingUsers: Array<{ userId: string; isTyping: boolean }>;
+  typingUsers: TypingUser[];
   /** Send typing indicator */
   sendTyping: (isTyping: boolean) => void;
 }

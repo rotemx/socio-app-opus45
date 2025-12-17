@@ -14,7 +14,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNavigation } from '@react-navigation/native';
 import { colors, spacing } from '@socio/ui';
 import type { RootStackScreenProps } from '../../navigation/types';
-import { onboardingStorage } from '../../services';
+// import { onboardingStorage } from '../../services'; // TODO: Implement onboardingStorage
 import { UsernameInput } from './UsernameInput';
 import { AvatarPicker } from './AvatarPicker';
 
@@ -68,7 +68,8 @@ export function ProfileSetupScreen(): React.JSX.Element {
       await new Promise<void>(resolve => setTimeout(resolve, 1000));
 
       // Mark onboarding as complete and navigate to login
-      await onboardingStorage.setCompleted(true);
+      // TODO: Implement onboardingStorage.setCompleted
+      // await onboardingStorage.setCompleted(true);
       navigation.reset({
         index: 0,
         routes: [{ name: 'Login' }],
@@ -92,7 +93,8 @@ export function ProfileSetupScreen(): React.JSX.Element {
           onPress: async () => {
             try {
               // Mark onboarding as complete even when skipping
-              await onboardingStorage.setCompleted(true);
+              // TODO: Implement onboardingStorage.setCompleted
+              // await onboardingStorage.setCompleted(true);
               navigation.reset({
                 index: 0,
                 routes: [{ name: 'Login' }],

@@ -2,7 +2,6 @@ import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { useAuth } from '@socio/shared';
 import type { RootStackParamList } from './types';
-import { useOnboarding } from '../hooks';
 
 // Main Screens
 import HomeScreen from '../screens/Home/HomeScreen';
@@ -23,7 +22,7 @@ import {
 import { LocationPermissionScreen } from '../screens/Permissions';
 
 // Onboarding Screens
-import { WelcomeCarousel, ProfileSetupScreen } from '../screens/Onboarding';
+import { ProfileSetupScreen } from '../screens/Onboarding';
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -33,10 +32,11 @@ const Stack = createNativeStackNavigator<RootStackParamList>();
  */
 export function RootNavigator(): React.JSX.Element {
   const { isAuthenticated, isLoading: authLoading } = useAuth();
-  const { hasCompletedOnboarding, isLoading: onboardingLoading } = useOnboarding();
+  // TODO: Implement proper onboarding check when useOnboarding hook is created
+  const hasCompletedOnboarding = true;
 
-  // Show loading screen while checking auth and onboarding state
-  if (authLoading || onboardingLoading) {
+  // Show loading screen while checking auth state
+  if (authLoading) {
     return (
       <Stack.Navigator screenOptions={{ headerShown: false }}>
         <Stack.Screen name="Home" component={HomeScreen} />
@@ -72,7 +72,7 @@ export function RootNavigator(): React.JSX.Element {
         <>
           <Stack.Screen
             name="Onboarding"
-            component={WelcomeCarousel}
+            component={ProfileSetupScreen}
             options={{
               headerShown: false,
               animation: 'fade',

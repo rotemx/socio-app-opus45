@@ -12,6 +12,7 @@ export * from './hooks/useRoomDetails';
 export * from './hooks/useRoomMembers';
 export * from './hooks/useSendMessage';
 export * from './hooks/useRoomDiscovery';
+export * from './hooks/useSearch';
 
 // Providers
 export * from './providers';

@@ -168,25 +168,28 @@ const getStorage = (): StateStorage => {
     return customStorage;
   }
   // Fallback for environments without localStorage
-  if (typeof window !== 'undefined' && window.localStorage) {
+  // Use type assertion for cross-platform compatibility (web and React Native)
+  const globalWindow = globalThis as typeof globalThis & { window?: { localStorage?: { getItem: (key: string) => string | null; setItem: (key: string, value: string) => void; removeItem: (key: string) => void } } };
+  if (globalWindow.window?.localStorage) {
+    const localStorage = globalWindow.window.localStorage;
     return {
       getItem: (name) => {
         try {
-          return window.localStorage.getItem(name);
+          return localStorage.getItem(name);
         } catch {
           return null;
         }
       },
       setItem: (name, value) => {
         try {
-          window.localStorage.setItem(name, value);
+          localStorage.setItem(name, value);
         } catch {
           // Silently fail if localStorage is unavailable (private browsing, quota exceeded)
         }
       },
       removeItem: (name) => {
         try {
-          window.localStorage.removeItem(name);
+          localStorage.removeItem(name);
         } catch {
           // Silently fail if localStorage is unavailable
         }
