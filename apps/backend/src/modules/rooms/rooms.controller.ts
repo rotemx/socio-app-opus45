@@ -9,7 +9,7 @@ import {
   type UpdateMemberRoleDto,
   type NearbyRoomsDto,
 } from './dto/rooms.dto';
-import { CurrentUser, RateLimit } from '../../common/decorators';
+import { CurrentUser, RateLimit, ParseUuidPipe } from '../../common';
 import { type JwtPayload } from '../auth/dto/auth.dto';
 
 /**
@@ -72,7 +72,7 @@ export class RoomsController {
    * GET /rooms/:id
    */
   @Get(':id')
-  async getRoom(@Param('id') id: string) {
+  async getRoom(@Param('id', ParseUuidPipe) id: string) {
     return this.roomsService.findById(id);
   }
 
@@ -82,7 +82,7 @@ export class RoomsController {
    */
   @Patch(':id')
   async updateRoom(
-    @Param('id') id: string,
+    @Param('id', ParseUuidPipe) id: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: UpdateRoomDto
   ) {
@@ -95,7 +95,7 @@ export class RoomsController {
    */
   @Post(':id/join')
   async joinRoom(
-    @Param('id') id: string,
+    @Param('id', ParseUuidPipe) id: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: JoinRoomDto
   ) {
@@ -109,7 +109,7 @@ export class RoomsController {
    * DELETE /rooms/:id/leave
    */
   @Delete(':id/leave')
-  async leaveRoom(@Param('id') id: string, @CurrentUser() user: JwtPayload) {
+  async leaveRoom(@Param('id', ParseUuidPipe) id: string, @CurrentUser() user: JwtPayload) {
     return this.roomsService.leaveRoom(id, user.sub);
   }
 
@@ -119,7 +119,7 @@ export class RoomsController {
    */
   @Get(':id/members')
   async getMembers(
-    @Param('id') id: string,
+    @Param('id', ParseUuidPipe) id: string,
     @Query('limit') limit?: number,
     @Query('cursor') cursor?: string
   ) {
@@ -132,8 +132,8 @@ export class RoomsController {
    */
   @Patch(':id/members/:userId/role')
   async updateMemberRole(
-    @Param('id') roomId: string,
-    @Param('userId') targetUserId: string,
+    @Param('id', ParseUuidPipe) roomId: string,
+    @Param('userId', ParseUuidPipe) targetUserId: string,
     @CurrentUser() user: JwtPayload,
     @Body() dto: UpdateMemberRoleDto
   ) {

@@ -9,3 +9,6 @@ export * from './interceptors';
 
 // Filters
 export * from './filters';
+
+// Pipes
+export * from './pipes';

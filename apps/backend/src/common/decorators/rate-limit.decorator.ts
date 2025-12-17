@@ -12,6 +12,16 @@ export interface RateLimitConfig {
   keyPrefix?: string;
   /** Whether to use user ID in the key (for authenticated routes) */
   perUser?: boolean;
+  /**
+   * SECURITY: If true, requests are rejected when rate limiting service is unavailable.
+   * Use this for sensitive operations like:
+   * - OTP/SMS sending (prevents SMS bombing attacks)
+   * - Password reset requests
+   * - Email verification
+   *
+   * Default: false (fail-open for general endpoints to maintain availability)
+   */
+  failClosed?: boolean;
 }
 
 export const RATE_LIMIT_KEY = 'rate-limit';
@@ -31,6 +41,11 @@ export const RATE_LIMIT_KEY = 'rate-limit';
  * @RateLimit({ limit: 100, windowSeconds: 60, perUser: true })
  * @Get('messages')
  * getMessages() {}
+ *
+ * // Fail-closed for sensitive operations (e.g., OTP sending)
+ * @RateLimit({ limit: 3, windowSeconds: 600, failClosed: true })
+ * @Post('phone/request')
+ * sendOtp(@Body() dto: PhoneDto) {}
  * ```
  */
 export const RateLimit = (config: RateLimitConfig) => SetMetadata(RATE_LIMIT_KEY, config);

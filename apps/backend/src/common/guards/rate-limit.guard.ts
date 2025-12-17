@@ -67,6 +67,19 @@ export class RateLimitGuard implements CanActivate {
     const window = config.windowSeconds;
 
     try {
+      // SECURITY: For fail-closed endpoints, verify Redis is connected first
+      if (config.failClosed && !this.redisService.isConnected()) {
+        this.logger.error('Redis not connected - failing closed for sensitive endpoint');
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+            message: 'Service temporarily unavailable. Please try again later.',
+            error: 'Service Unavailable',
+          },
+          HttpStatus.SERVICE_UNAVAILABLE
+        );
+      }
+
       const result = await this.redisService.checkRateLimit(key, limit, window);
 
       const response = context.switchToHttp().getResponse();
@@ -90,9 +103,25 @@ export class RateLimitGuard implements CanActivate {
     } catch (error) {
       if (error instanceof HttpException) throw error;
 
-      // Fail open if Redis is down, but log it
+      // SECURITY: If failClosed is enabled, reject the request when rate limiting fails
+      // This prevents abuse of sensitive endpoints (SMS sending, password reset, etc.)
+      if (config.failClosed) {
+        this.logger.error(
+          `Rate limiting failed (failing closed): ${error instanceof Error ? error.message : 'Unknown error'}`
+        );
+        throw new HttpException(
+          {
+            statusCode: HttpStatus.SERVICE_UNAVAILABLE,
+            message: 'Service temporarily unavailable. Please try again later.',
+            error: 'Service Unavailable',
+          },
+          HttpStatus.SERVICE_UNAVAILABLE
+        );
+      }
+
+      // Fail open for general endpoints if Redis is down, but log it
       this.logger.error(
-        `Rate limiting failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        `Rate limiting failed (failing open): ${error instanceof Error ? error.message : 'Unknown error'}`
       );
       return true;
     }

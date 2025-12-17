@@ -134,12 +134,12 @@ export class AuthController {
    * Request phone verification code (send OTP)
    * POST /auth/phone/send-otp
    *
-   * Rate limited to 3 requests per phone number per 10 minutes
-   * (enforced in TwilioService, not here, since we need per-phone limiting)
+   * SECURITY: Uses failClosed to prevent SMS bombing attacks when rate limiting is unavailable
+   * Additional per-phone rate limiting is enforced in TwilioService
    */
   @Public()
   @UseGuards(RateLimitGuard)
-  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:send' })
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:send', failClosed: true })
   @Post('phone/send-otp')
   @HttpCode(HttpStatus.OK)
   async sendPhoneOtp(@Body() dto: PhoneVerifyRequestDto) {
@@ -154,11 +154,12 @@ export class AuthController {
    * Verify phone OTP code
    * POST /auth/phone/verify-otp
    *
+   * SECURITY: Uses failClosed to prevent brute-force OTP attacks when rate limiting is unavailable
    * On successful verification, can optionally link phone to authenticated user
    */
   @Public()
   @UseGuards(RateLimitGuard)
-  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:verify' })
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:verify', failClosed: true })
   @Post('phone/verify-otp')
   @HttpCode(HttpStatus.OK)
   async verifyPhoneOtp(@Body() dto: PhoneVerifyConfirmDto) {
@@ -181,7 +182,7 @@ export class AuthController {
    */
   @Public()
   @UseGuards(RateLimitGuard)
-  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:send' })
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:send', failClosed: true })
   @Post('phone/request')
   @HttpCode(HttpStatus.OK)
   async requestPhoneVerification(@Body() dto: PhoneVerifyRequestDto) {
@@ -195,7 +196,7 @@ export class AuthController {
    */
   @Public()
   @UseGuards(RateLimitGuard)
-  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:verify' })
+  @RateLimit({ limit: 10, windowSeconds: 60, keyPrefix: 'auth:phone:verify', failClosed: true })
   @Post('phone/confirm')
   @HttpCode(HttpStatus.OK)
   async confirmPhoneVerification(@Body() dto: PhoneVerifyConfirmDto) {

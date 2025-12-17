@@ -1,17 +1,39 @@
 import { createZodDto } from 'nestjs-zod';
 import { z } from 'zod';
 
-// Login with email/password
+/**
+ * Password validation schema with complexity requirements
+ * Enforces: min 8 chars, max 128 chars, lowercase, uppercase, and number
+ */
+const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters long')
+  .max(128, 'Password must be at most 128 characters long')
+  .refine((password) => /[a-z]/.test(password), {
+    message: 'Password must contain at least one lowercase letter',
+  })
+  .refine((password) => /[A-Z]/.test(password), {
+    message: 'Password must contain at least one uppercase letter',
+  })
+  .refine((password) => /[0-9]/.test(password), {
+    message: 'Password must contain at least one number',
+  });
+
+// Login with email/password - relaxed validation for login (don't reveal password requirements)
 const loginSchema = z.object({
   email: z.string().email(),
-  password: z.string().min(8).max(128),
+  password: z.string().min(1, 'Password is required').max(128),
 });
 
-// Register new user
+// Register new user - strict password validation
 const registerSchema = z.object({
-  username: z.string().min(3).max(50),
-  email: z.string().email(),
-  password: z.string().min(8).max(128),
+  username: z
+    .string()
+    .min(3, 'Username must be at least 3 characters')
+    .max(50, 'Username must be at most 50 characters')
+    .regex(/^[a-zA-Z0-9_]+$/, 'Username can only contain letters, numbers, and underscores'),
+  email: z.string().email('Invalid email address'),
+  password: passwordSchema,
   displayName: z.string().min(1).max(100).optional(),
 });
 
